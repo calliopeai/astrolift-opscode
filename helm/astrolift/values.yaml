@@ -1,0 +1,124 @@
+# Default values for astrolift.
+# Override per-cloud with values.<cloud>.yaml.
+
+global:
+  # Platform domain used for default branding and ingress hostnames.
+  platformDomain: "astrolift.app"
+  imagePullPolicy: IfNotPresent
+
+# -- astrolift-api: Django backend, GraphQL, REST
+api:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: astrolift/api
+    tag: ""  # defaults to Chart.appVersion
+    pullPolicy: ""  # defaults to global.imagePullPolicy
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  env: {}
+  # Example:
+  #   DATABASE_URL: "postgres://..."
+  #   REDIS_URL: "redis://..."
+
+# -- astrolift-ui: Next.js web frontend
+ui:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: astrolift/ui
+    tag: ""
+    pullPolicy: ""
+  service:
+    type: ClusterIP
+    port: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  env: {}
+
+# -- astrolift workers: Temporal workflow workers
+worker:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: astrolift/worker
+    tag: ""
+    pullPolicy: ""
+  service:
+    type: ClusterIP
+    port: 8001
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  env: {}
+
+# -- astrolift-status: branded fallback for unmatched ingress hosts
+status:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: astrolift/status
+    tag: ""
+    pullPolicy: ""
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  env: {}
+
+# -- Ingress configuration
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: astrolift.local
+      paths:
+        - path: /
+          pathType: Prefix
+          service: ui
+        - path: /api
+          pathType: Prefix
+          service: api
+        - path: /graphql
+          pathType: Prefix
+          service: api
+  tls: []
+  #  - secretName: astrolift-tls
+  #    hosts:
+  #      - astrolift.local
+
+# -- Common labels applied to all resources
+commonLabels: {}
+
+# -- Image pull secrets (for private registries)
+imagePullSecrets: []
+
+# -- Service account
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}

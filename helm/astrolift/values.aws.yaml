@@ -1,0 +1,17 @@
+# AWS-specific overrides for astrolift Helm chart.
+# Usage: helm install astrolift ./helm/astrolift -f ./helm/astrolift/values.aws.yaml
+
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/certificate-arn: ""  # set to ACM cert ARN
+
+serviceAccount:
+  create: true
+  annotations:
+    eks.amazonaws.com/role-arn: ""  # set to IRSA role ARN

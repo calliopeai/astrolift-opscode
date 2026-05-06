@@ -1,0 +1,18 @@
+{{- if .Values.worker.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "astrolift.fullname" . }}-worker
+  labels:
+    {{- include "astrolift.labels" . | nindent 4 }}
+    {{- include "astrolift.selectorLabels" (dict "root" . "component" "worker") | nindent 4 }}
+spec:
+  type: {{ .Values.worker.service.type }}
+  ports:
+    - port: {{ .Values.worker.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "astrolift.selectorLabels" (dict "root" . "component" "worker") | nindent 4 }}
+{{- end }}

@@ -1,0 +1,43 @@
+# EXPERIMENTAL — In Progress
+# GCP support is under active development. Not yet validated against
+# a live GCP project. Contributions welcome.
+
+# -----------------------------------------------------------------------------
+# Astrolift — GCP Development Environment
+# -----------------------------------------------------------------------------
+
+terraform {
+  # Backend configured via -backend-config at init time.
+  # See gcp/config.env for project/region settings.
+  # Run: ./run.sh init gcp dev
+  #
+  # backend "gcs" {
+  #   bucket = "tf-state-astrolift"
+  #   prefix = "gcp/dev"
+  # }
+}
+
+locals {
+  name         = "dev-astrolift"
+  env          = "development"
+  region       = var.region
+  project_id   = var.project_id
+  service_name = "astrolift"
+  owner        = "astrolift"
+  ver          = "1.0"
+  domain       = "dev.astrolift.net"
+  vpc_cidr     = "10.0.0.0/16"
+
+  labels = {
+    service     = local.service_name
+    environment = local.env
+    owner       = local.owner
+    managed-by  = "terraform"
+  }
+}
+
+data "google_project" "current" {
+  project_id = local.project_id
+}
+
+data "google_client_config" "current" {}

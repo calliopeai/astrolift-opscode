@@ -1,0 +1,33 @@
+Astrolift has been installed.
+
+Release:   {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+Version:   {{ .Chart.AppVersion }}
+
+Components deployed:
+{{- if .Values.api.enabled }}
+  - astrolift-api    (port {{ .Values.api.service.port }})
+{{- end }}
+{{- if .Values.ui.enabled }}
+  - astrolift-ui     (port {{ .Values.ui.service.port }})
+{{- end }}
+{{- if .Values.worker.enabled }}
+  - astrolift-worker (port {{ .Values.worker.service.port }})
+{{- end }}
+{{- if .Values.status.enabled }}
+  - astrolift-status (port {{ .Values.status.service.port }})
+{{- end }}
+
+{{- if .Values.ingress.enabled }}
+
+Ingress is enabled. Access the platform at:
+{{- range .Values.ingress.hosts }}
+  https://{{ .host }}
+{{- end }}
+{{- else }}
+
+No ingress is configured. To access the platform, use port-forward:
+
+  kubectl port-forward svc/{{ include "astrolift.fullname" . }}-ui {{ .Values.ui.service.port }}:{{ .Values.ui.service.port }}
+  kubectl port-forward svc/{{ include "astrolift.fullname" . }}-api {{ .Values.api.service.port }}:{{ .Values.api.service.port }}
+{{- end }}

@@ -1,0 +1,13 @@
+apiVersion: v2
+name: astrolift
+description: Helm chart for deploying the Astrolift platform control plane
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - astrolift
+  - platform
+  - control-plane
+maintainers:
+  - name: Astrolift
+    url: https://astrolift.app
