@@ -16,3 +16,4 @@ variable "container_image" { type = string }
 variable "ecs_task_cpu" { type = number }
 variable "ecs_task_memory" { type = number }
 variable "account_id" { type = string }
+variable "vpc_cidr" { type = string }

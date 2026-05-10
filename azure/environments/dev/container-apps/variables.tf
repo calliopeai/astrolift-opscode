@@ -11,3 +11,4 @@ variable "storage_account_id" { type = string }
 variable "container_image" { type = string }
 variable "container_cpu" { type = number }
 variable "container_memory" { type = string }
+variable "domain" { type = string }

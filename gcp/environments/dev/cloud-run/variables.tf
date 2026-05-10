@@ -9,3 +9,6 @@ variable "dns_zone_name" { type = string }
 variable "container_image" { type = string }
 variable "db_secret_id" { type = string }
 variable "app_secret_id" { type = string }
+variable "subnet_id" { type = string }
+variable "db_connection_name" { type = string }
+variable "storage_bucket" { type = string }
