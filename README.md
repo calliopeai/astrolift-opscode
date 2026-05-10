@@ -192,3 +192,5 @@ Open follow-ups tracked in GitHub Issues.
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+Copyright (c) 2026 Calliope Labs Inc. All Rights Reserved. Calliope AI is a trademark of Calliope Labs Inc.
