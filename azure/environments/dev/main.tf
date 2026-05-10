@@ -1,22 +1,17 @@
-# EXPERIMENTAL — In Progress
-# Azure support is under active development. Not yet validated against
-# a live Azure subscription. Contributions welcome.
-
 # -----------------------------------------------------------------------------
 # Astrolift — Azure Development Environment
 # -----------------------------------------------------------------------------
 
 terraform {
-  # Backend configured via -backend-config at init time.
-  # See azure/config.env for project/region settings.
-  # Run: ./run.sh init azure dev
-
-  # backend "azurerm" {
-  #   resource_group_name  = "astrolift-tfstate-rg"
-  #   storage_account_name = "astrolifttfstate"
-  #   container_name       = "tfstate"
-  #   key                  = "azure/dev/terraform.tfstate"
-  # }
+  backend "azurerm" {
+    # resource_group_name + storage_account_name + container_name + key
+    # injected at init time via -backend-config.
+    # Default scheme: rg = "astrolift-tfstate-rg",
+    #                 storage = "astrolifttfstate",
+    #                 container = "tfstate",
+    #                 key = "azure/dev/terraform.tfstate".
+    # Run: ./run.sh init azure dev
+  }
 }
 
 locals {
