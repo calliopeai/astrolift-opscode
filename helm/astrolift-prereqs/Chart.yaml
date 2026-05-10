@@ -1,0 +1,25 @@
+apiVersion: v2
+name: astrolift-prereqs
+description: |
+  Cluster prerequisites for Astrolift on vanilla Kubernetes — cert-manager,
+  ingress, storage, managed-service operators, observability, backup. Each
+  component is an optional subchart toggled by .Values.<component>.enabled.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - astrolift
+  - prereqs
+  - kubernetes
+  - bootstrap
+home: https://astrolift.dev
+sources:
+  - https://github.com/calliopeai/astrolift-opscode
+maintainers:
+  - name: Astrolift
+    url: https://astrolift.dev
+
+# Subchart dependencies are added in follow-up commits. This commit ships
+# the wrapper structure + glue templates (storage classes, cluster issuer)
+# so operators can pull a clean chart that compiles before the heavy
+# prereqs land on top of it.

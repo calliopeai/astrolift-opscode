@@ -1,0 +1,104 @@
+# Astrolift prereqs — default values
+#
+# Each top-level key matches a subchart (added in follow-up commits) plus
+# its `condition: <key>.enabled` in Chart.yaml. Defaults bias toward
+# vanilla bare-metal: cert-manager + nginx ingress + Longhorn for storage.
+# Cloud-managed clusters typically disable Longhorn / MetalLB / Vault.
+
+# -----------------------------------------------------------------------------
+# Glue (this chart's own templates — render even with no subcharts enabled)
+# -----------------------------------------------------------------------------
+
+# StorageClass tier mapping. Provisioner values default to Longhorn; flip
+# to topolvm.io / rook-ceph.cephfs.csi.ceph.com / rancher.io/local-path /
+# nfs.csi.k8s.io as needed by the cluster's actual CSI drivers.
+storageClasses:
+  enabled: true
+
+  longhorn:
+    enabled: true
+    rwxEnabled: true
+    classes:
+      standard:
+        replicas: 1
+        fsType: ext4
+      balanced:
+        # default class — astrolift bind-class default for tenant PVs
+        default: true
+        replicas: 2
+        fsType: ext4
+      high-iops:
+        replicas: 3
+        fsType: ext4
+        dataLocality: best-effort
+      extreme:
+        # extreme = local NVMe; in Longhorn this means strict-local + replicas=1
+        replicas: 1
+        fsType: ext4
+        dataLocality: strict-local
+
+  # Operators on bare-metal with TopoLVM / Rook Ceph / NFS / local-path can
+  # add their own StorageClass blocks here. Keep them disabled unless the
+  # cluster has the underlying CSI installed.
+  topolvm:
+    enabled: false
+  rookCeph:
+    enabled: false
+  localPath:
+    enabled: false
+  nfs:
+    enabled: false
+
+# Optional cert-manager ClusterIssuer (rendered only when certManager.enabled
+# AND clusterIssuer.enabled). Operators can leave this off and supply their
+# own Issuer/ClusterIssuer if they have a private CA or different ACME flow.
+clusterIssuer:
+  enabled: false
+  name: letsencrypt-prod
+  acmeServer: https://acme-v02.api.letsencrypt.org/directory
+  email: ""
+  ingressClass: nginx
+
+# -----------------------------------------------------------------------------
+# Subchart toggles (subcharts wired in follow-up commits)
+# -----------------------------------------------------------------------------
+
+# Cluster essentials
+certManager:
+  enabled: false
+externalDns:
+  enabled: false
+ingressNginx:
+  enabled: false
+metallb:
+  enabled: false
+
+# Storage operators
+longhorn:
+  enabled: false
+rookCeph:
+  enabled: false
+
+# Managed-service operators (match astrolift-providers/k8s_native/preflight.py)
+cnpg:
+  enabled: false
+strimzi:
+  enabled: false
+redisOperator:
+  enabled: false
+vault:
+  enabled: false
+
+# Backup
+velero:
+  enabled: false
+
+# Observability stack
+otelCollector:
+  enabled: false
+prometheus:
+  enabled: false
+loki:
+  enabled: false
+tempo:
+  enabled: false
