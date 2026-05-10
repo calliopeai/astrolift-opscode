@@ -1,0 +1,48 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: ${ORG}
+  namespace: argocd
+  labels:
+    astrolift.dev/org: ${ORG}
+spec:
+  description: "Astrolift project scope for org ${ORG}"
+
+  # Tenant repos can register additional sourceRepos via the platform;
+  # the org's own GitOps config repo is always allowed.
+  sourceRepos:
+    - "${REPO_URL}"
+
+  destinations:
+    - server: "https://kubernetes.default.svc"
+      namespace: "${ORG}-*"
+
+  # Tenants can install standard k8s + CRDs from the platform-installed
+  # operators (CNPG, Strimzi, etc.) but can't install cluster-scoped CRDs.
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - group: ""
+      kind: "*"
+    - group: "apps"
+      kind: "*"
+    - group: "networking.k8s.io"
+      kind: "*"
+    - group: "autoscaling"
+      kind: "*"
+    - group: "policy"
+      kind: "*"
+    - group: "postgresql.cnpg.io"
+      kind: "*"
+    - group: "kafka.strimzi.io"
+      kind: "*"
+    - group: "redis.redis.opstreelabs.in"
+      kind: "*"
+
+  roles:
+    - name: deploy
+      description: "Tenant deploy role (limited to sync + override)"
+      policies:
+        - p, proj:${ORG}:deploy, applications, sync, ${ORG}/*, allow
+        - p, proj:${ORG}:deploy, applications, override, ${ORG}/*, allow
+      groups:
+        - astrolift:${ORG}

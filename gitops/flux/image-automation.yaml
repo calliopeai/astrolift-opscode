@@ -1,0 +1,67 @@
+# Image automation — auto-bumps tenant Helm releases when a new
+# tagged image lands in their registry. Operator can disable per-app
+# by removing the matching ImagePolicy.
+
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageRepository
+metadata:
+  name: ${APP}
+  namespace: flux-system
+  labels:
+    astrolift.dev/org: ${ORG}
+    astrolift.dev/app: ${APP}
+spec:
+  image: ${IMAGE_REPOSITORY}
+  interval: 1m
+  secretRef:
+    name: ${ORG}-registry-creds
+
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImagePolicy
+metadata:
+  name: ${APP}
+  namespace: flux-system
+  labels:
+    astrolift.dev/org: ${ORG}
+    astrolift.dev/app: ${APP}
+spec:
+  imageRepositoryRef:
+    name: ${APP}
+  filterTags:
+    pattern: '^${IMAGE_TAG_PATTERN}$'
+    extract: '$version'
+  policy:
+    semver:
+      range: '>=0.0.0'
+
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta1
+kind: ImageUpdateAutomation
+metadata:
+  name: ${ORG}-${APP}
+  namespace: flux-system
+  labels:
+    astrolift.dev/org: ${ORG}
+    astrolift.dev/app: ${APP}
+spec:
+  interval: 5m
+  sourceRef:
+    kind: GitRepository
+    name: ${ORG}
+  git:
+    checkout:
+      ref:
+        branch: ${REPO_REVISION}
+    commit:
+      author:
+        email: gitops@astrolift.dev
+        name: Astrolift GitOps
+      messageTemplate: |
+        chore(${APP}): bump ${IMAGE_REPOSITORY} to {{range .Updated.Images}}{{println .}}{{end}}
+    push:
+      branch: ${REPO_REVISION}
+  update:
+    path: ./apps/${APP}/${ENV}
+    strategy: Setters

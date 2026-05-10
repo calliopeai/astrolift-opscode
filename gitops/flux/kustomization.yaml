@@ -1,0 +1,30 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: ${ORG}-${APP}-${ENV}
+  namespace: flux-system
+  labels:
+    astrolift.dev/org: ${ORG}
+    astrolift.dev/app: ${APP}
+    astrolift.dev/env: ${ENV}
+spec:
+  interval: 1m
+  path: ./apps/${APP}/${ENV}
+  prune: true
+  wait: true
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: ${ORG}
+  targetNamespace: ${ORG}-${APP}
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  postBuild:
+    substitute:
+      org: ${ORG}
+      app: ${APP}
+      env: ${ENV}
+      cluster_name: ${CLUSTER_NAME}
+      base_zone: ${BASE_ZONE}

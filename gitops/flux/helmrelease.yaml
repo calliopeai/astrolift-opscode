@@ -1,0 +1,34 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ${APP}
+  namespace: ${ORG}-${APP}
+  labels:
+    astrolift.dev/org: ${ORG}
+    astrolift.dev/app: ${APP}
+    astrolift.dev/env: ${ENV}
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: ./apps/${APP}/chart
+      sourceRef:
+        kind: GitRepository
+        name: ${ORG}
+        namespace: flux-system
+  values:
+    image:
+      repository: ${IMAGE_REPOSITORY}
+      tag: ${IMAGE_TAG}
+    env:
+      ASTROLIFT_ORG: ${ORG}
+      ASTROLIFT_APP: ${APP}
+      ASTROLIFT_ENV: ${ENV}
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+    cleanupOnFail: true

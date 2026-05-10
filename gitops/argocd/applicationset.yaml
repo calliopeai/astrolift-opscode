@@ -1,0 +1,50 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: ${ORG}-apps
+  namespace: argocd
+  labels:
+    astrolift.dev/org: ${ORG}
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+
+  # The git generator walks the tenant's astrolift-config tree and
+  # creates one Application per app+env directory. Layout expected:
+  #   apps/<app>/<env>/kustomization.yaml
+  generators:
+    - git:
+        repoURL: "${REPO_URL}"
+        revision: "${REPO_REVISION}"
+        directories:
+          - path: "apps/*/*"
+
+  template:
+    metadata:
+      name: '${ORG}-{{ index .path.segments 1 }}-{{ index .path.segments 2 }}'
+      labels:
+        astrolift.dev/org: ${ORG}
+        astrolift.dev/app: '{{ index .path.segments 1 }}'
+        astrolift.dev/env: '{{ index .path.segments 2 }}'
+    spec:
+      project: ${ORG}
+      source:
+        repoURL: "${REPO_URL}"
+        targetRevision: "${REPO_REVISION}"
+        path: '{{ .path.path }}'
+      destination:
+        server: "https://kubernetes.default.svc"
+        namespace: '${ORG}-{{ index .path.segments 1 }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m

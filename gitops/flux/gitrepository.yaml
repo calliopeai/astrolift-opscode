@@ -1,0 +1,17 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: ${ORG}
+  namespace: flux-system
+  labels:
+    astrolift.dev/org: ${ORG}
+spec:
+  interval: 1m
+  url: ${REPO_URL}
+  ref:
+    branch: ${REPO_REVISION}
+  secretRef:
+    name: ${ORG}-git-creds
+  ignore: |
+    /*
+    !/apps

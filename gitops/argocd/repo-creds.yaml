@@ -1,0 +1,35 @@
+# ExternalSecret-backed repository credentials for ArgoCD.
+# Pulls SSH key (or HTTPS token) from the cloud secret store under a
+# per-org path. Requires external-secrets installed (see astrolift-prereqs)
+# plus a ClusterSecretStore wired to the cloud's secret backend.
+
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: ${ORG}-repo-creds
+  namespace: argocd
+  labels:
+    astrolift.dev/org: ${ORG}
+    argocd.argoproj.io/secret-type: repo-creds
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    name: ${SECRET_STORE_REF}
+    kind: ClusterSecretStore
+
+  target:
+    name: ${ORG}-repo-creds
+    creationPolicy: Owner
+    template:
+      metadata:
+        labels:
+          argocd.argoproj.io/secret-type: repo-creds
+      data:
+        # Fill the format Argo expects (URL + sshPrivateKey OR username + password).
+        url: "${REPO_URL}"
+        sshPrivateKey: "{{ .sshPrivateKey }}"
+
+  data:
+    - secretKey: sshPrivateKey
+      remoteRef:
+        key: astrolift/${ORG}/gitops/ssh-key
