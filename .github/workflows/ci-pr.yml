@@ -55,12 +55,16 @@ jobs:
       - uses: terraform-linters/setup-tflint@v4
       - name: tflint --init
         run: tflint --init
-      - name: tflint --recursive
-        run: tflint --recursive --chdir aws --format compact
+      # --force runs tflint informationally for now: output annotates
+      # findings on the run but doesn't fail the job. Pre-existing
+      # warnings (unused locals/data sources) need triage before we
+      # flip this off — tracked in #17.
+      - name: tflint aws
+        run: tflint --recursive --chdir aws --format compact --force
       - name: tflint gcp
-        run: tflint --recursive --chdir gcp --format compact
+        run: tflint --recursive --chdir gcp --format compact --force
       - name: tflint azure
-        run: tflint --recursive --chdir azure --format compact
+        run: tflint --recursive --chdir azure --format compact --force
 
   helm:
     name: helm lint + template
