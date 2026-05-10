@@ -1,6 +1,185 @@
 # Astrolift Opscode -- Infrastructure Bootstrap
 
-Terraform + Helm infrastructure-as-code for deploying the Astrolift platform. AWS fully implemented with ECS Fargate and EKS Kubernetes runtimes. GCP and Azure structured for future expansion. Helm chart included for Kubernetes-native platform installation.
+Technical reference for agents + contributors working in this repo. The
+operator-facing install runbooks live in `INSTALL-<cloud>.md`; this
+file is for **how to work on the code**, not how to deploy it.
+
+> **Read [STATUS.md](STATUS.md) before changing anything** — canonical
+> truth on what's complete vs partial vs stub. Don't mark something
+> done if STATUS.md still calls it ⚠️.
+
+**GitHub:** https://github.com/<your-fork>/astrolift-opscode (replace with the actual fork)
+**Companion repos** (each is a sibling submodule of the parent metarepo): `astrolift-app`, `astrolift-cli`, `astrolift-providers`, `astrolift-mobile`, `astrolift-status`, `astrolift-templates`, `astrolift-docs`, `astrolift-config`, `astrolift-site`
+
+---
+
+## What is this
+
+Terraform + Helm IaC for installing the Astrolift platform on AWS, GCP,
+Azure, or vanilla Kubernetes. Per-cloud `<cloud>/` trees follow the
+same shape; cross-cutting `helm/`, `ci-templates/`, and `gitops/` trees
+ship reusable assets that work on any of them.
+
+Per [STATUS.md](STATUS.md): AWS is structurally complete with a full
+operator runbook ([INSTALL-aws.md](INSTALL-aws.md)) but not yet
+validated end-to-end against a live account. GCP / Azure ship a
+working `dev` environment; `stg` and `prd` are skeletons. The
+k8s-native path (Longhorn + CNPG + friends, no managed cloud) targets
+local `kind` dev clusters and bare-metal installs.
+
+---
+
+## Agent + contributor rules
+
+Non-negotiables (apply to humans + AI agents alike):
+
+- **No rebases.** New commits only. Merge conflicts → resolve via
+  merge commits or fresh commits, never `git rebase`.
+- **No AI / co-author attribution** in commit messages or PR bodies.
+  Generated content is fine; attribution lines are not.
+- **Push submodules before the parent metarepo.** This repo is a
+  submodule of `astrolift`; if you bump opscode, push it first, then
+  bump the parent metarepo's gitlink and push that.
+- **No `terraform apply` from an agent session against a live cloud
+  account.** Plan-only is fine for review. Apply runs from a human's
+  shell.
+- **Run `terraform fmt -recursive` + `terraform validate` per env
+  before commit.** CI catches it on PR but local-fast-feedback beats
+  CI cycles. `helm lint` for chart edits.
+- **Push only the user's branch.** Never `git push --force` to `main`
+  without explicit human approval. If history rewrite is asked for,
+  confirm scope (commits, branches, force-push impact) first.
+- **No cross-project references** in code, docs, or commit messages.
+  Reference repos shared as learning sources stay as learnings only —
+  don't link or cite them from this repo.
+
+---
+
+## Conventions
+
+### Naming
+
+`{env}-{project}-{component}` everywhere. `project` is `PROJECT` from
+`<cloud>/config.env`; default `astrolift`. Examples:
+
+- `dev-astrolift-vpc`, `prd-astrolift-eks`, `stg-astrolift-redis`
+- ECR / Artifact Registry / ACR repos: `astrolift/{api,ui,worker,status}`
+- IAM role path: `/astrolift/` (provider plugin assumes this)
+- Secrets path: `/astrolift/<env>/<...>` (Secrets Manager / Secret
+  Manager / Key Vault prefix)
+
+### Tags (mandatory on every resource)
+
+```hcl
+tags = {
+  Name        = local.name
+  Service     = local.service_name
+  Owner       = local.owner
+  Environment = local.env
+  Region      = local.region
+  ManagedBy   = "terraform"
+}
+```
+
+`merge(local.tags, { ... })` for resource-specific additions.
+
+### Toggle pattern (every optional component is gated)
+
+Every component an operator might want to disable is a `bool` variable
+named `enable_<component>` with a default per env. Module calls and
+inline resources gate via `count`:
+
+```hcl
+module "fluent_bit" {
+  count  = var.enable_eks && var.enable_fluent_bit ? 1 : 0
+  source = "../../modules/observability-fluent-bit"
+  ...
+}
+
+resource "aws_opensearch_domain" "logs" {
+  count = var.enable_opensearch ? 1 : 0
+  ...
+}
+```
+
+Defaults follow a **dev=light / stg=most / prd=full** ladder. New
+optional components add a toggle; don't ship "always on" features.
+
+### Module conventions
+
+Every module has `main.tf` + `variables.tf` + `outputs.tf` + `versions.tf`.
+
+`versions.tf` pins `required_version` and the cloud's provider:
+
+```hcl
+terraform {
+  required_version = ">= 1.5"
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.0"   # match the env-root pin
+    }
+  }
+}
+```
+
+Modules ship public-API variables even when internally unused (callers
+depend on the contract). The `terraform_unused_declarations` tflint
+rule is disabled in `.tflint.hcl` for this reason — don't churn the
+var list to silence it.
+
+### Region defaults
+
+Region variables (`region`, `gcp_region`, `azure_location`) ship with
+no `default = "..."` line. Operators set the region explicitly via
+`<cloud>/config.env` or `terraform.tfvars`. Internal Astrolift envs
+pin `us-west-2`.
+
+---
+
+## Pre-commit validation
+
+Run before pushing:
+
+```bash
+./run.sh fmt                                         # terraform fmt -recursive
+./run.sh validate                                    # terraform validate per dir
+helm lint helm/astrolift -f helm/astrolift/values.aws.yaml
+helm lint helm/astrolift -f helm/astrolift/values.gcp.yaml
+helm lint helm/astrolift -f helm/astrolift/values.azure.yaml
+helm lint helm/astrolift-prereqs                    # if prereqs changed
+```
+
+CI re-runs all of the above plus `tflint`, `checkov` (soft-fail), and
+helm template artifact rendering. See `.github/workflows/ci-pr.yml`.
+
+---
+
+## Git workflow
+
+```bash
+# 1. Branch from main
+git checkout -b feature/<area>-<short>   # or fix/, chore/
+
+# 2. Make changes; run pre-commit checks above
+
+# 3. Commit (no co-author trailer; descriptive body)
+git commit -m "feat(aws): scaffold modular observability + backup toggles for #5/#6"
+
+# 4. Push the branch
+git push origin feature/<area>-<short>
+
+# 5. Open PR; CI runs ci-pr.yml's tier
+# 6. Merge via squash; CI runs ci-main.yml on main
+
+# 7. (Submodule case) bump the parent metarepo's gitlink + push that too
+cd ../  # into the metarepo
+git add astrolift-opscode
+git commit -m "chore(workspace): bump astrolift-opscode for <reason>"
+git push origin main
+```
+
+---
 
 ## Configuration
 
