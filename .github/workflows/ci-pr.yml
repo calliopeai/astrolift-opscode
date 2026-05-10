@@ -19,7 +19,7 @@ jobs:
     name: terraform fmt + validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -64,7 +64,7 @@ jobs:
       # terraform_unused_declarations) apply cluster-wide.
       TFLINT_CONFIG_FILE: ${{ github.workspace }}/.tflint.hcl
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: terraform-linters/setup-tflint@v4
       - name: tflint --init
         run: tflint --init
@@ -79,7 +79,7 @@ jobs:
     name: helm lint + template
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: azure/setup-helm@v4
         with:
           version: "v3.16.2"
@@ -115,7 +115,7 @@ jobs:
     name: shell + yaml + path-filter smoke
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

@@ -32,7 +32,7 @@ jobs:
     if: ${{ github.event_name == 'push' || inputs.run_kind_smoke }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: helm/kind-action@v1
         with:
           cluster_name: astrolift-ci
@@ -75,7 +75,7 @@ jobs:
         env:
           SERVICES: ec2,s3,iam,ecr,kms,logs,secretsmanager
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.9"
