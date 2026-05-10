@@ -1,0 +1,180 @@
+# Astrolift reusable style-gate workflow.
+# Auto-detects which languages are present in the repo and runs the
+# matching linter/formatter as a CI gate. No-op for languages not
+# present (zero cost).
+#
+# Invoke from a tenant repo:
+#
+#   name: style
+#   on: [pull_request, push]
+#   jobs:
+#     style:
+#       uses: astrolift/actions/.github/workflows/style-gates.yml@v1
+#       with:
+#         strict: true   # default: warnings fail the build
+
+name: astrolift-style
+
+on:
+  workflow_call:
+    inputs:
+      strict:
+        description: "Treat any finding as a build failure"
+        type: boolean
+        default: true
+      python_paths:
+        description: "Override paths to lint with ruff (default: '.')"
+        type: string
+        default: "."
+      typescript_paths:
+        description: "Override paths to lint with biome (default: '.')"
+        type: string
+        default: "."
+      go_paths:
+        description: "Override paths to lint with golangci-lint (default: './...')"
+        type: string
+        default: "./..."
+      terraform_paths:
+        description: "Override roots to lint with terraform fmt + tflint (default: '.')"
+        type: string
+        default: "."
+      helm_paths:
+        description: "Glob to find Helm charts (default: 'helm/*')"
+        type: string
+        default: "helm/*"
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: detect languages
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.f.outputs.python }}
+      typescript: ${{ steps.f.outputs.typescript }}
+      go: ${{ steps.f.outputs.go }}
+      terraform: ${{ steps.f.outputs.terraform }}
+      helm: ${{ steps.f.outputs.helm }}
+      shell: ${{ steps.f.outputs.shell }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: f
+        run: |
+          set -euo pipefail
+          has() { compgen -G "$1" >/dev/null 2>&1; }
+
+          if has "**/pyproject.toml" || has "**/*.py"; then
+            echo "python=true" >> "$GITHUB_OUTPUT"
+          fi
+          if has "**/package.json" || has "**/*.ts" || has "**/*.tsx" || has "**/*.js" || has "**/*.jsx"; then
+            echo "typescript=true" >> "$GITHUB_OUTPUT"
+          fi
+          if has "**/go.mod" || has "**/*.go"; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+          if has "**/*.tf"; then
+            echo "terraform=true" >> "$GITHUB_OUTPUT"
+          fi
+          if compgen -G "${{ inputs.helm_paths }}/Chart.yaml" >/dev/null 2>&1; then
+            echo "helm=true" >> "$GITHUB_OUTPUT"
+          fi
+          if has "**/*.sh"; then
+            echo "shell=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "Detected languages:"
+          cat "$GITHUB_OUTPUT" || true
+
+  python:
+    name: ruff (python)
+    needs: detect
+    if: needs.detect.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+      - name: ruff format --check
+        run: uv tool run ruff format --check ${{ inputs.python_paths }}
+      - name: ruff check
+        run: uv tool run ruff check ${{ inputs.python_paths }}
+
+  typescript:
+    name: biome (typescript)
+    needs: detect
+    if: needs.detect.outputs.typescript == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: biome ci
+        run: npx --yes @biomejs/biome ci ${{ inputs.typescript_paths }}
+
+  go:
+    name: golangci-lint (go)
+    needs: detect
+    if: needs.detect.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.62
+          args: ${{ inputs.go_paths }} --timeout=5m
+
+  terraform:
+    name: terraform fmt + tflint
+    needs: detect
+    if: needs.detect.outputs.terraform == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.9"
+      - uses: terraform-linters/setup-tflint@v4
+      - name: terraform fmt -check -recursive
+        run: terraform fmt -check -recursive -diff ${{ inputs.terraform_paths }}
+      - name: tflint --init
+        run: tflint --init
+      - name: tflint --recursive
+        run: tflint --recursive ${{ inputs.terraform_paths }} --format compact
+
+  helm:
+    name: helm lint
+    needs: detect
+    if: needs.detect.outputs.helm == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: azure/setup-helm@v4
+        with:
+          version: "v3.16.2"
+      - name: helm lint
+        run: |
+          set -e
+          for chart in ${{ inputs.helm_paths }}; do
+            if [ -f "$chart/Chart.yaml" ]; then
+              echo "::group::$chart"
+              helm dependency update "$chart" 2>/dev/null || true
+              helm lint "$chart"
+              echo "::endgroup::"
+            fi
+          done
+
+  shell:
+    name: shellcheck
+    needs: detect
+    if: needs.detect.outputs.shell == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: shellcheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          severity: ${{ inputs.strict && 'warning' || 'error' }}

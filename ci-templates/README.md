@@ -89,3 +89,29 @@ BuildKit registry-backed cache is on by default with `mode=max`:
 
 Operators with a self-hosted cache (e.g. ECR pull-through) can override
 the cache repo via the `cache_repo` input.
+
+## Style gates (#16)
+
+Reusable workflow that auto-detects which languages are present and runs
+the matching linter — no-op for languages not in the repo, so the same
+template works for any tenant stack.
+
+```yaml
+# .github/workflows/style.yml
+name: style
+on: [pull_request, push]
+jobs:
+  style:
+    uses: astrolift/actions/.github/workflows/style-gates.yml@v1
+```
+
+Languages covered: ruff (Python), biome (TypeScript/JavaScript),
+golangci-lint (Go), terraform fmt + tflint (HCL), helm lint (charts),
+shellcheck (bash). Each toggleable via inputs (e.g. `python_paths`,
+`go_paths`).
+
+## Pre-commit hooks
+
+Drop `ci-templates/shared/pre-commit-config.yaml` into a tenant repo as
+`.pre-commit-config.yaml` and run `pre-commit install`. Same toolchain
+as the style-gates workflow so local + CI agree.
