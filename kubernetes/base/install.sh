@@ -1,22 +1,31 @@
 #!/usr/bin/env bash
 # -----------------------------------------------------------------------------
-# Astrolift — Kubernetes Base Platform Install
+# Astrolift — Kubernetes Base Platform Install (kind / dev convenience)
 #
 # Installs the foundational tools every cluster needs before application
-# workloads can deploy.
+# workloads can deploy. For production + customer-operator installs, prefer
+# the umbrella chart at helm/astrolift-prereqs/ (chart for prod, this script
+# for kind/dev).
+#
+# Each prereq below maps to a toggle in the umbrella chart's values.yaml so
+# the two paths stay aligned. Use --skip <name> to turn off specific prereqs.
 #
 # Usage:
-#   ./kubernetes/base/install.sh <aws|gcp|azure> <env> [options]
+#   ./kubernetes/base/install.sh <kind|aws|gcp|azure> <env> [options]
 #
 # Options:
 #   --cluster-name <name>    Cluster name (default: {env}-astrolift)
-#   --alb-role-arn <arn>     ALB controller IRSA role ARN (EKS only)
+#   --alb-role-arn <arn>     ALB controller IRSA role ARN (aws only)
+#   --skip <prereq>          Skip a prereq (repeatable). Names match values.yaml
+#                            keys: certManager, externalSecrets, gatewayApi,
+#                            envoyGateway, albController, externalDns, fluentBit,
+#                            loki, prometheus, argocd
 #   --dry-run                Show what would be installed
 #
 # Examples:
+#   ./kubernetes/base/install.sh kind dev
 #   ./kubernetes/base/install.sh aws dev --alb-role-arn arn:aws:iam::123:role/...
-#   ./kubernetes/base/install.sh gcp dev
-#   ./kubernetes/base/install.sh azure dev
+#   ./kubernetes/base/install.sh kind dev --skip argocd --skip loki
 # -----------------------------------------------------------------------------
 
 set -euo pipefail
@@ -27,8 +36,8 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-CLOUD="${1:?Usage: install.sh <aws|gcp|azure> <env> [options]}"
-ENV="${2:?Usage: install.sh <aws|gcp|azure> <env> [options]}"
+CLOUD="${1:?Usage: install.sh <kind|aws|gcp|azure> <env> [options]}"
+ENV="${2:?Usage: install.sh <kind|aws|gcp|azure> <env> [options]}"
 shift 2
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,15 +47,32 @@ VALUES_DIR="${K8S_DIR}/values/${CLOUD}"
 CLUSTER_NAME="${ENV}-astrolift"
 ALB_ROLE_ARN=""
 DRY_RUN=false
+declare -A SKIP=()
+
+# kind profile: skip cloud-specific prereqs by default. Operators on kind
+# don't have ACM / Cloud DNS / cloud secret managers; the script defaults
+# to the dev essentials only.
+if [[ "${CLOUD}" == "kind" ]]; then
+  SKIP[albController]=1
+  SKIP[externalDns]=1
+  SKIP[externalSecrets]=1
+  # When running against kind, fall back to the aws values dir's neutral
+  # subset (no cloud-specific annotations needed for the prereqs that do
+  # install). Operators with custom kind values can pass their own dir.
+  VALUES_DIR="${K8S_DIR}/values/aws"
+fi
 
 while [[ $# -gt 0 ]]; do
   case $1 in
     --cluster-name) CLUSTER_NAME="$2"; shift 2 ;;
     --alb-role-arn) ALB_ROLE_ARN="$2"; shift 2 ;;
+    --skip) SKIP[$2]=1; shift 2 ;;
     --dry-run) DRY_RUN=true; shift ;;
     *) echo "Unknown option: $1"; exit 1 ;;
   esac
 done
+
+skip() { [[ -n "${SKIP[$1]:-}" ]]; }
 
 info()    { echo -e "${BLUE}[INFO]${NC} $*"; }
 success() { echo -e "${GREEN}[OK]${NC} $*"; }
@@ -129,28 +155,42 @@ helm_install() {
 # Install components
 # -----------------------------------------------------------------------------
 
-# 1. cert-manager (all clouds)
-helm_install cert-manager jetstack/cert-manager cert-manager \
-  "${VALUES_DIR}/cert-manager.yaml"
-
-# 2. external-secrets (all clouds)
-helm_install external-secrets external-secrets/external-secrets external-secrets \
-  "${VALUES_DIR}/external-secrets.yaml"
-
-# 3. Gateway API + Envoy Gateway (all clouds)
-# Gateway API is the Kubernetes standard replacing Ingress.
-# https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/
-info "Installing Gateway API CRDs..."
-if ! ${DRY_RUN}; then
-  kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/latest/download/standard-install.yaml 2>/dev/null \
-    && success "  Gateway API CRDs installed" || warn "  Gateway API CRDs may already exist"
+# 1. cert-manager
+if ! skip certManager; then
+  helm_install cert-manager jetstack/cert-manager cert-manager \
+    "${VALUES_DIR}/cert-manager.yaml"
+else
+  info "Skipping cert-manager (--skip certManager)"
 fi
 
-helm_install envoy-gateway oci://docker.io/envoyproxy/gateway-helm envoy-gateway-system \
-  "${VALUES_DIR}/envoy-gateway.yaml"
+# 2. external-secrets
+if ! skip externalSecrets; then
+  helm_install external-secrets external-secrets/external-secrets external-secrets \
+    "${VALUES_DIR}/external-secrets.yaml"
+else
+  info "Skipping external-secrets (--skip externalSecrets)"
+fi
 
-# 4. ALB controller (EKS only — manages AWS ALB via Gateway API or Ingress)
-if [[ "${CLOUD}" == "aws" ]]; then
+# 3. Gateway API + Envoy Gateway
+# Gateway API is the Kubernetes standard replacing Ingress.
+# https://kubernetes.io/blog/2025/11/11/ingress-nginx-retirement/
+if ! skip gatewayApi; then
+  info "Installing Gateway API CRDs..."
+  if ! ${DRY_RUN}; then
+    kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/latest/download/standard-install.yaml 2>/dev/null \
+      && success "  Gateway API CRDs installed" || warn "  Gateway API CRDs may already exist"
+  fi
+fi
+
+if ! skip envoyGateway; then
+  helm_install envoy-gateway oci://docker.io/envoyproxy/gateway-helm envoy-gateway-system \
+    "${VALUES_DIR}/envoy-gateway.yaml"
+else
+  info "Skipping envoy-gateway (--skip envoyGateway)"
+fi
+
+# 4. ALB controller (aws only — manages AWS ALB via Gateway API or Ingress)
+if [[ "${CLOUD}" == "aws" ]] && ! skip albController; then
   if [[ -z "${ALB_ROLE_ARN}" ]]; then
     warn "No --alb-role-arn provided. ALB controller will not have IAM permissions."
     warn "Get the ARN from: terraform output -raw alb_controller_role_arn"
@@ -161,25 +201,45 @@ if [[ "${CLOUD}" == "aws" ]]; then
     --set "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn=${ALB_ROLE_ARN}"
 fi
 
-# 5. external-dns (automatic DNS record management)
-helm_install external-dns external-dns/external-dns external-dns \
-  "${VALUES_DIR}/external-dns.yaml"
+# 5. external-dns
+if ! skip externalDns; then
+  helm_install external-dns external-dns/external-dns external-dns \
+    "${VALUES_DIR}/external-dns.yaml"
+else
+  info "Skipping external-dns (--skip externalDns)"
+fi
 
 # 6. Fluent Bit (log collection → Loki)
-helm_install fluent-bit fluent/fluent-bit logging \
-  "${VALUES_DIR}/fluent-bit.yaml"
+if ! skip fluentBit; then
+  helm_install fluent-bit fluent/fluent-bit logging \
+    "${VALUES_DIR}/fluent-bit.yaml"
+else
+  info "Skipping fluent-bit (--skip fluentBit)"
+fi
 
 # 7. Loki (log aggregation backend)
-helm_install loki grafana/loki-stack loki \
-  "${VALUES_DIR}/loki-stack.yaml"
+if ! skip loki; then
+  helm_install loki grafana/loki-stack loki \
+    "${VALUES_DIR}/loki-stack.yaml"
+else
+  info "Skipping loki (--skip loki)"
+fi
 
 # 8. Prometheus + Grafana (metrics, alerting, dashboards)
-helm_install kube-prometheus-stack prometheus-community/kube-prometheus-stack monitoring \
-  "${VALUES_DIR}/kube-prometheus-stack.yaml"
+if ! skip prometheus; then
+  helm_install kube-prometheus-stack prometheus-community/kube-prometheus-stack monitoring \
+    "${VALUES_DIR}/kube-prometheus-stack.yaml"
+else
+  info "Skipping kube-prometheus-stack (--skip prometheus)"
+fi
 
 # 9. Argo CD (GitOps continuous delivery)
-helm_install argocd argo/argo-cd argocd \
-  "${VALUES_DIR}/argo-cd.yaml"
+if ! skip argocd; then
+  helm_install argocd argo/argo-cd argocd \
+    "${VALUES_DIR}/argo-cd.yaml"
+else
+  info "Skipping argocd (--skip argocd)"
+fi
 
 # 10. metrics-server (skip if managed by cloud provider)
 case "${CLOUD}" in
@@ -191,6 +251,15 @@ case "${CLOUD}" in
     ;;
   azure)
     info "Skipping metrics-server (AKS includes this by default)"
+    ;;
+  kind)
+    if ! skip metricsServer; then
+      helm_repo_add metrics-server https://kubernetes-sigs.github.io/metrics-server/
+      helm repo update >/dev/null 2>&1
+      helm_install metrics-server metrics-server/metrics-server kube-system \
+        "${VALUES_DIR}/cert-manager.yaml" \
+        --set "args[0]=--kubelet-insecure-tls"
+    fi
     ;;
 esac
 
