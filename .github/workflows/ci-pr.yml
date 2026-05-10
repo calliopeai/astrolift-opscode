@@ -1,0 +1,177 @@
+# Cheap tier — runs on every PR to main.
+# fmt + offline validate + tflint + helm lint/template + script/yaml parse +
+# path-filter smoke. Goal: <5 min on a clean runner; catches all the
+# regressions worth gating PRs on.
+
+name: opscode pr ci
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: terraform fmt + validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9"
+
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive -diff
+
+      - name: terraform validate (modules + envs across all clouds)
+        run: |
+          set -euo pipefail
+          # Walk the cloud trees and init+validate every directory that
+          # contains .tf files. Offline init (no providers downloaded).
+          dirs=$(find aws gcp azure -type d \
+            ! -path '*/.terraform*' \
+            ! -path '*/charts/*' \
+            -exec sh -c 'ls "$1"/*.tf >/dev/null 2>&1 && echo "$1"' _ {} \; | sort -u)
+          fail=0
+          for d in $dirs; do
+            echo "=== $d ==="
+            if ! (cd "$d" && terraform init -backend=false -input=false >/dev/null 2>&1 && terraform validate); then
+              echo "FAIL: $d"
+              fail=1
+            fi
+          done
+          exit $fail
+
+  tflint:
+    name: tflint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: terraform-linters/setup-tflint@v4
+      - name: tflint --init
+        run: tflint --init
+      - name: tflint --recursive
+        run: tflint --recursive --chdir aws --format compact
+      - name: tflint gcp
+        run: tflint --recursive --chdir gcp --format compact
+      - name: tflint azure
+        run: tflint --recursive --chdir azure --format compact
+
+  helm:
+    name: helm lint + template
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: "v3.16.2"
+
+      - name: helm dependency update (astrolift-prereqs)
+        run: helm dependency update helm/astrolift-prereqs
+
+      - name: helm lint astrolift (per cloud)
+        run: |
+          set -e
+          helm lint helm/astrolift -f helm/astrolift/values.aws.yaml
+          helm lint helm/astrolift -f helm/astrolift/values.gcp.yaml
+          helm lint helm/astrolift -f helm/astrolift/values.azure.yaml
+
+      - name: helm lint astrolift-prereqs
+        run: helm lint helm/astrolift-prereqs
+
+      - name: helm template smoke (default values)
+        run: |
+          set -e
+          helm template astrolift helm/astrolift -f helm/astrolift/values.aws.yaml > /dev/null
+          helm template astrolift helm/astrolift -f helm/astrolift/values.gcp.yaml > /dev/null
+          helm template astrolift helm/astrolift -f helm/astrolift/values.azure.yaml > /dev/null
+          helm template prereqs helm/astrolift-prereqs > /dev/null
+
+      - name: tenant-telemetry values syntax (yaml-only, no upstream chart pull)
+        run: |
+          for f in helm/tenant-telemetry/fluent-bit/*.yaml helm/tenant-telemetry/otel-collector/*.yaml; do
+            python3 -c "import yaml; list(yaml.safe_load_all(open('$f')))" && echo "OK: $f"
+          done
+
+  scripts-and-yaml:
+    name: shell + yaml + path-filter smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: pip install
+        run: pip install pyyaml tomli
+
+      - name: bash -n on all shell scripts
+        run: |
+          set -euo pipefail
+          fail=0
+          for f in $(find . -name '*.sh' -not -path './.git/*' -not -path './helm/astrolift-prereqs/charts/*'); do
+            if ! bash -n "$f"; then
+              echo "FAIL: $f"
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: yaml + json parse across templates
+        run: |
+          python3 - <<'PY'
+          import yaml, json, glob, sys
+          fail = 0
+          ok = 0
+          patterns = [
+            'ci-templates/**/*.yml',
+            'ci-templates/**/*.yaml',
+            'gitops/**/*.yaml',
+            'helm/tenant-telemetry/**/*.yaml',
+            'kubernetes/values/**/*.yaml',
+          ]
+          for pat in patterns:
+              for f in glob.glob(pat, recursive=True):
+                  try:
+                      list(yaml.safe_load_all(open(f)))
+                      ok += 1
+                  except Exception as e:
+                      print(f'FAIL: {f}: {e}')
+                      fail += 1
+          print(f'parsed ok={ok} fail={fail}')
+          if fail:
+              sys.exit(1)
+          PY
+
+      - name: path-filter smoke test
+        run: |
+          set -euo pipefail
+          chmod +x ci-templates/shared/path-filter.sh
+          mkdir -p /tmp/pf
+          cat > /tmp/pf/astrolift.toml <<'EOF'
+          [app]
+          name = "demo"
+          [workloads.api]
+          build_context = "./api"
+          [workloads.ui]
+          build_context = "./ui"
+          [workloads.worker]
+          build_context = "./worker"
+          EOF
+
+          # Fixture should produce 3 workloads in each format.
+          DORNY=$(./ci-templates/shared/path-filter.sh --manifest /tmp/pf/astrolift.toml --format dorny)
+          echo "$DORNY"
+          test "$(echo "$DORNY" | grep -c '^[a-z]')" -eq 3
+
+          GITLAB=$(./ci-templates/shared/path-filter.sh --manifest /tmp/pf/astrolift.toml --format gitlab)
+          test "$(echo "$GITLAB" | wc -l)" -eq 3
+
+          CHANGED=$(./ci-templates/shared/path-filter.sh --manifest /tmp/pf/astrolift.toml --format changed)
+          test "$CHANGED" = '["api", "ui", "worker"]'
+
+          echo "path-filter smoke OK"

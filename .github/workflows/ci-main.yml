@@ -1,0 +1,82 @@
+# Medium tier — runs on push to main.
+# Inherits the cheap-tier checks (re-runs them) plus checkov security
+# scan + helm template artifact upload across every cloud values file.
+#
+# terraform plan against real backends is intentionally NOT run here —
+# requires cloud credentials in CI which we don't yet wire. Plan-only
+# runs land via workflow_dispatch in ci-release.yml when needed.
+
+name: opscode main ci
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rerun-pr-checks:
+    name: rerun pr-tier checks
+    uses: ./.github/workflows/ci-pr.yml
+
+  checkov:
+    name: checkov (security scan)
+    runs-on: ubuntu-latest
+    needs: rerun-pr-checks
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: install checkov
+        run: pip install checkov
+
+      - name: checkov scan aws
+        run: checkov -d aws --framework terraform --soft-fail
+        # soft-fail: surface findings as warnings; tighten to hard-fail
+        # once outstanding issues are triaged + suppressed via .checkov.yml
+
+      - name: checkov scan gcp
+        run: checkov -d gcp --framework terraform --soft-fail
+
+      - name: checkov scan azure
+        run: checkov -d azure --framework terraform --soft-fail
+
+  helm-template-artifacts:
+    name: helm template artifacts
+    runs-on: ubuntu-latest
+    needs: rerun-pr-checks
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: "v3.16.2"
+
+      - name: helm dependency update
+        run: helm dependency update helm/astrolift-prereqs
+
+      - name: render astrolift per cloud
+        run: |
+          set -e
+          mkdir -p .render
+          for cloud in aws gcp azure; do
+            helm template astrolift helm/astrolift \
+              -f "helm/astrolift/values.${cloud}.yaml" \
+              > ".render/astrolift-${cloud}.yaml"
+            echo "rendered .render/astrolift-${cloud}.yaml ($(wc -l < .render/astrolift-${cloud}.yaml) lines)"
+          done
+
+      - name: render astrolift-prereqs (default values)
+        run: |
+          helm template prereqs helm/astrolift-prereqs > .render/astrolift-prereqs.yaml
+          echo "rendered .render/astrolift-prereqs.yaml ($(wc -l < .render/astrolift-prereqs.yaml) lines)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: helm-rendered-${{ github.sha }}
+          path: .render/
+          retention-days: 30

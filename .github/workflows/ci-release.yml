@@ -1,0 +1,89 @@
+# Heavy tier — runs on tag builds + manual dispatch only.
+# Boots a kind cluster + localstack and exercises a slice of the
+# infra to catch apply-time regressions that fmt/validate miss.
+#
+# Currently a structural skeleton: the kind/localstack steps are
+# stubbed with TODOs so the workflow file exists and triggers
+# correctly on tags. Filling them in is its own follow-up — they
+# need real fixtures + a stable subset of resources to apply.
+
+name: opscode release ci
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      run_kind_smoke:
+        description: "Run the kind cluster smoke test"
+        type: boolean
+        default: true
+      run_localstack:
+        description: "Run the localstack apply"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  kind-smoke:
+    name: kind cluster smoke (astrolift-prereqs minimal)
+    if: ${{ github.event_name == 'push' || inputs.run_kind_smoke }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: astrolift-ci
+          wait: 5m
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: "v3.16.2"
+
+      - name: helm dep update
+        run: helm dependency update helm/astrolift-prereqs
+
+      - name: install astrolift-prereqs (minimal subset)
+        run: |
+          # Toggle on cert-manager + storage classes only — the rest
+          # take >10m to roll out and aren't worth gating release on.
+          helm install prereqs helm/astrolift-prereqs \
+            --set certManager.enabled=true \
+            --set storageClasses.enabled=true \
+            --set storageClasses.longhorn.enabled=false \
+            --wait --timeout 5m
+
+      - name: kubectl get pods
+        run: kubectl get pods -A
+
+      - name: TODO — extend with sample app deploy via astro CLI
+        run: |
+          echo "Sub-5-min target per spec #11 — fill in when the kind dev"
+          echo "profile in kubernetes/base/install.sh is hardened."
+
+  localstack-apply:
+    name: localstack apply (aws subset)
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_localstack }}
+    runs-on: ubuntu-latest
+    services:
+      localstack:
+        image: localstack/localstack:3
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: ec2,s3,iam,ecr,kms,logs,secretsmanager
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9"
+
+      - name: TODO — wire localstack provider override + apply tf-backend
+        run: |
+          echo "Stub — fill in:"
+          echo "  1. provider 'aws' { endpoints { s3 = http://localhost:4566 ... } } overrides"
+          echo "  2. apply aws/tf-backend with mock account"
+          echo "  3. apply a small subset of aws/modules/ to exercise resource shape"
+          echo "Hard to make stable across localstack versions; defer until needed."
