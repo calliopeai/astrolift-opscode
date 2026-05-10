@@ -17,3 +17,8 @@ output "efs_id" {
   description = "EFS filesystem ID for persistent storage"
   value       = aws_efs_file_system.k8s.id
 }
+
+output "efs_arn" {
+  description = "EFS filesystem ARN (used by AWS Backup selections)"
+  value       = aws_efs_file_system.k8s.arn
+}
