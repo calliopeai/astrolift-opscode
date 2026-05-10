@@ -14,7 +14,7 @@ keywords:
   - bootstrap
 home: https://astrolift.dev
 sources:
-  - https://github.com/calliopeai/astrolift-opscode
+  - https://github.com/<your-fork>/astrolift-opscode
 maintainers:
   - name: Astrolift
     url: https://astrolift.dev

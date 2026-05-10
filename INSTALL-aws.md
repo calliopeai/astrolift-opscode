@@ -40,7 +40,7 @@ Fargate.
 ### Repo
 
 ```bash
-git clone --recurse-submodules git@github.com:calliopeai/astrolift.git
+git clone --recurse-submodules https://github.com/<your-fork>/astrolift.git
 cd astrolift/astrolift-opscode
 ```
 
