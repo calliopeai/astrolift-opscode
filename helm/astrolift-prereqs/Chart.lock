@@ -29,5 +29,20 @@ dependencies:
 - name: vault
   repository: https://helm.releases.hashicorp.com
   version: 0.28.1
-digest: sha256:143af149e8ae3183099bfe118a90ac0bdec066a9140ea148a5f41a700d2ee14b
-generated: "2026-05-09T19:41:27.237297-06:00"
+- name: velero
+  repository: https://vmware-tanzu.github.io/helm-charts
+  version: 8.0.0
+- name: opentelemetry-collector
+  repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+  version: 0.108.0
+- name: kube-prometheus-stack
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 65.5.0
+- name: loki
+  repository: https://grafana.github.io/helm-charts
+  version: 6.18.0
+- name: tempo
+  repository: https://grafana.github.io/helm-charts
+  version: 1.10.1
+digest: sha256:20096ce8a8bd6f1c15b0af728d893d2da6c04eff553f45a5ebe8c6db6503463c
+generated: "2026-05-09T19:43:54.205667-06:00"

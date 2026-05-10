@@ -72,3 +72,31 @@ dependencies:
     version: "0.28.1"
     repository: "https://helm.releases.hashicorp.com"
     condition: vault.enabled
+
+  # Backup
+  - name: velero
+    version: "8.0.0"
+    repository: "https://vmware-tanzu.github.io/helm-charts"
+    condition: velero.enabled
+
+  # Observability stack — Prometheus + Grafana + Alertmanager via the
+  # community kube-prometheus-stack; Loki for logs; Tempo for traces;
+  # OTel collector as the universal ingest path.
+  - name: opentelemetry-collector
+    version: "0.108.0"
+    repository: "https://open-telemetry.github.io/opentelemetry-helm-charts"
+    condition: otelCollector.enabled
+    alias: opentelemetry-collector
+  - name: kube-prometheus-stack
+    version: "65.5.0"
+    repository: "https://prometheus-community.github.io/helm-charts"
+    condition: prometheus.enabled
+    alias: kube-prometheus-stack
+  - name: loki
+    version: "6.18.0"
+    repository: "https://grafana.github.io/helm-charts"
+    condition: loki.enabled
+  - name: tempo
+    version: "1.10.1"
+    repository: "https://grafana.github.io/helm-charts"
+    condition: tempo.enabled

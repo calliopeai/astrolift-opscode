@@ -221,16 +221,118 @@ vault:
   injector:
     enabled: true
 
+# -----------------------------------------------------------------------------
 # Backup
+# -----------------------------------------------------------------------------
+
+# Velero: cluster-wide backup of k8s resources + PV snapshots.
+# `configuration.backupStorageLocation` and `volumeSnapshotLocation` need
+# operator wiring per cloud — see the commented examples below.
+# Upstream values: https://github.com/vmware-tanzu/helm-charts/tree/main/charts/velero
 velero:
   enabled: false
+  initContainers:
+    # Plugins are installed via init containers; uncomment per cloud.
+    # AWS:
+    # - name: velero-plugin-for-aws
+    #   image: velero/velero-plugin-for-aws:v1.10.0
+    #   volumeMounts:
+    #     - mountPath: /target
+    #       name: plugins
+    # GCP / Azure / CSI plugins follow the same pattern.
+    []
+  configuration:
+    # backupStorageLocation:
+    #   - name: default
+    #     provider: aws
+    #     bucket: <set by operator>
+    #     config:
+    #       region: us-west-2
+    backupStorageLocation: []
+    volumeSnapshotLocation: []
 
+# -----------------------------------------------------------------------------
 # Observability stack
+#
+# OTel collector is the universal ingest path; metrics flow to Prometheus
+# (kube-prometheus-stack), traces to Tempo, logs to Loki. Operators on
+# managed clouds (AWS, GCP, Azure) typically point OTel at the cloud-
+# managed equivalents instead and disable the in-cluster Prom/Loki/Tempo.
+# -----------------------------------------------------------------------------
+
+# OpenTelemetry collector: gateway + DaemonSet pattern.
+# Upstream values: https://github.com/open-telemetry/opentelemetry-helm-charts/tree/main/charts/opentelemetry-collector
+opentelemetry-collector:
+  enabled: false
+  mode: deployment
+  image:
+    repository: otel/opentelemetry-collector-contrib
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc: { endpoint: 0.0.0.0:4317 }
+          http: { endpoint: 0.0.0.0:4318 }
+    exporters:
+      # Operators wire one or more of: prometheus, loki, otlp/tempo,
+      # cloud-managed exporters (xray, gcp.cloudtrace, azuremonitor).
+      debug: { verbosity: basic }
+    service:
+      pipelines:
+        traces:  { receivers: [otlp], exporters: [debug] }
+        metrics: { receivers: [otlp], exporters: [debug] }
+        logs:    { receivers: [otlp], exporters: [debug] }
+
 otelCollector:
   enabled: false
+
+# kube-prometheus-stack: Prometheus + Grafana + Alertmanager + kube-state-
+# metrics + node-exporter + Prometheus Operator.
+# Upstream values: https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack
+kube-prometheus-stack:
+  enabled: false
+  prometheus:
+    prometheusSpec:
+      retention: 30d
+      retentionSize: ""  # unbounded by default; cap on small clusters
+      serviceMonitorSelectorNilUsesHelmValues: false
+      podMonitorSelectorNilUsesHelmValues: false
+      ruleSelectorNilUsesHelmValues: false
+      storageSpec: {}  # operators wire PVC for persistence
+  grafana:
+    enabled: true
+    adminPassword: ""  # operators set via secret + grafana.admin.existingSecret
+    persistence: { enabled: true, type: pvc, size: 10Gi }
+  alertmanager:
+    enabled: true
+
 prometheus:
   enabled: false
+
+# Loki: log aggregation.
+# Upstream values: https://github.com/grafana/loki/tree/main/production/helm/loki
 loki:
   enabled: false
+  loki:
+    auth_enabled: false
+    commonConfig:
+      replication_factor: 1
+    storage:
+      # Operators wire S3 / GCS / Azure / filesystem storage backends.
+      type: filesystem
+  # Compact 1-replica defaults; production deployments scale up.
+  singleBinary:
+    replicas: 1
+
+# Tempo: distributed tracing storage.
+# Upstream values: https://github.com/grafana/helm-charts/tree/main/charts/tempo
 tempo:
   enabled: false
+  tempo:
+    storage:
+      trace:
+        # Operators wire S3 / GCS / Azure backends. Defaults to local
+        # (works for dev / kind, not production).
+        backend: local
+        local:
+          path: /var/tempo
