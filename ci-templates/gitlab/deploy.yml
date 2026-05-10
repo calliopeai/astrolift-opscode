@@ -1,0 +1,118 @@
+# Astrolift GitLab CI template.
+# Include from a tenant project:
+#
+#   include:
+#     - remote: https://templates.astrolift.dev/gitlab/deploy.yml
+#
+#   variables:
+#     ASTROLIFT_APP: my-app
+#     ASTROLIFT_ENVIRONMENT: production
+#     ASTROLIFT_MANIFEST: astrolift.toml      # default
+
+stages:
+  - detect-changes
+  - build
+  - deploy
+
+variables:
+  ASTROLIFT_MANIFEST: astrolift.toml
+  ASTROLIFT_ENVIRONMENT: production
+  ASTROLIFT_FORCE_BUILD_ALL: "false"
+
+# OIDC federation for registry auth — issues short-lived cloud creds
+# scoped to the running pipeline. Tenant projects must enable
+# CI_JOB_JWT_V2 + Workload Identity Federation in their cloud.
+.oidc_id_tokens:
+  id_tokens:
+    ASTROLIFT_OIDC_TOKEN:
+      aud: https://astrolift.dev/ci
+
+.astrolift_install: &astrolift_install
+  - curl -fsSL https://install.astrolift.dev | sh
+  - export PATH="$HOME/.astrolift/bin:$PATH"
+
+astrolift:detect-changes:
+  stage: detect-changes
+  image: alpine:3.20
+  before_script:
+    - apk add --no-cache bash python3 git
+    - *astrolift_install
+  script:
+    - |
+      if [ "$ASTROLIFT_FORCE_BUILD_ALL" = "true" ]; then
+        WORKLOADS=$(./ci-templates/shared/path-filter.sh \
+          --manifest "$ASTROLIFT_MANIFEST" --format changed)
+      else
+        WORKLOADS=$(./ci-templates/shared/path-filter.sh \
+          --manifest "$ASTROLIFT_MANIFEST" --format changed \
+          --diff-base "${CI_COMMIT_BEFORE_SHA:-$CI_DEFAULT_BRANCH}")
+      fi
+      echo "ASTROLIFT_WORKLOADS=${WORKLOADS}" > workloads.env
+      echo "Workloads to build: ${WORKLOADS}"
+  artifacts:
+    reports:
+      dotenv: workloads.env
+
+# Per-workload build job — one instance per workload, dynamic via parallel:matrix.
+# Tenants pass the workload list at trigger time; if using GitLab's `rules:changes:`
+# directly, see ASTROLIFT_RULES_PATTERNS below.
+astrolift:build-deploy:
+  stage: build
+  image: docker:27
+  services:
+    - docker:27-dind
+  extends: .oidc_id_tokens
+  needs:
+    - astrolift:detect-changes
+  before_script:
+    - apk add --no-cache bash python3 git curl
+    - *astrolift_install
+    - |
+      if [ "$ASTROLIFT_WORKLOADS" = "[]" ] || [ -z "$ASTROLIFT_WORKLOADS" ]; then
+        echo "No workloads changed; skipping build."
+        exit 0
+      fi
+  parallel:
+    matrix:
+      - WORKLOAD: ["__INJECTED_FROM_DETECT__"]
+  script:
+    # Iterate over each entry in the workloads JSON list. Each iteration
+    # builds + deploys one workload; tenants on GitLab Premium can use
+    # `parallel:matrix` with a JSON-derived value via include:rules.
+    - |
+      echo "$ASTROLIFT_WORKLOADS" | python3 -c "
+import json, sys, os
+print(' '.join(json.loads(sys.stdin.read())))" | tr ' ' '\n' | while read WL; do
+        [ -z "$WL" ] && continue
+        echo "=== Building + deploying: $WL ==="
+        astro ci registry-login \
+          --app "$ASTROLIFT_APP" \
+          --workload "$WL" \
+          --env "$ASTROLIFT_ENVIRONMENT"
+        IMAGE_REPO=$(astro ci image-repo \
+          --app "$ASTROLIFT_APP" \
+          --workload "$WL" \
+          --env "$ASTROLIFT_ENVIRONMENT")
+        docker buildx create --use --name astrolift-builder >/dev/null 2>&1 || true
+        docker buildx build \
+          --push \
+          --tag "${IMAGE_REPO}:${CI_COMMIT_SHA}" \
+          --tag "${IMAGE_REPO}:latest" \
+          --cache-from "type=registry,ref=${IMAGE_REPO}:buildcache" \
+          --cache-to "type=registry,ref=${IMAGE_REPO}:buildcache,mode=max" \
+          "./${WL}"
+        astro ci deploy \
+          --app "$ASTROLIFT_APP" \
+          --workload "$WL" \
+          --image "${IMAGE_REPO}:${CI_COMMIT_SHA}" \
+          --env "$ASTROLIFT_ENVIRONMENT"
+      done
+
+# Optional: rules:changes pattern for tenants who prefer per-job
+# triggering. Include this snippet in their .gitlab-ci.yml:
+#
+#   astrolift:build-deploy:
+#     rules:
+#       - changes:
+#           - api/**/*
+#           - ui/**/*

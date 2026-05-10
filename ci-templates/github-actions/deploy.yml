@@ -1,0 +1,159 @@
+# Astrolift reusable GitHub Actions workflow.
+# Invoke from a tenant repo:
+#
+#   uses: astrolift/actions/.github/workflows/deploy.yml@v1
+#   with:
+#     app_name: my-app
+#     environment: production
+#   secrets:
+#     astrolift_token: ${{ secrets.ASTROLIFT_TOKEN }}
+
+name: astrolift-deploy
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: "Astrolift RegisteredApp name"
+        type: string
+        required: true
+      manifest_path:
+        description: "Path to astrolift.toml in the repo"
+        type: string
+        default: astrolift.toml
+      environment:
+        description: "Astrolift deploy environment"
+        type: string
+        default: production
+      diff_base:
+        description: "Git ref to diff against for selective builds"
+        type: string
+        default: ""
+      force_build_all:
+        description: "Build every workload regardless of changed paths"
+        type: boolean
+        default: false
+      cache_repo:
+        description: "Override BuildKit cache repo (defaults to <image>:buildcache)"
+        type: string
+        default: ""
+      async_mode:
+        description: "Don't wait for terminal deploy state"
+        type: boolean
+        default: false
+    secrets:
+      astrolift_token:
+        required: true
+
+permissions:
+  id-token: write   # OIDC federation for cloud registry auth
+  contents: read
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      workloads: ${{ steps.filter.outputs.workloads }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install astro CLI
+        run: |
+          curl -fsSL https://install.astrolift.dev | sh
+          echo "$HOME/.astrolift/bin" >> $GITHUB_PATH
+
+      - name: Compute changed workloads
+        id: filter
+        env:
+          DIFF_BASE: ${{ inputs.diff_base || github.event.before || github.event.pull_request.base.sha }}
+        run: |
+          if [[ "${{ inputs.force_build_all }}" == "true" ]]; then
+            WORKLOADS=$(./ci-templates/shared/path-filter.sh \
+              --manifest "${{ inputs.manifest_path }}" \
+              --format changed)
+          else
+            WORKLOADS=$(./ci-templates/shared/path-filter.sh \
+              --manifest "${{ inputs.manifest_path }}" \
+              --format changed \
+              --diff-base "${DIFF_BASE}")
+          fi
+          echo "workloads=${WORKLOADS}" >> $GITHUB_OUTPUT
+          echo "Computed workloads to build: ${WORKLOADS}"
+
+  build-deploy:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.workloads != '[]' && needs.detect-changes.outputs.workloads != '' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        workload: ${{ fromJson(needs.detect-changes.outputs.workloads) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install astro CLI
+        run: |
+          curl -fsSL https://install.astrolift.dev | sh
+          echo "$HOME/.astrolift/bin" >> $GITHUB_PATH
+
+      - name: Configure registry auth (OIDC)
+        env:
+          ASTROLIFT_TOKEN: ${{ secrets.astrolift_token }}
+        run: |
+          astro ci registry-login \
+            --app "${{ inputs.app_name }}" \
+            --workload "${{ matrix.workload }}" \
+            --env "${{ inputs.environment }}"
+
+      - name: Resolve image repo
+        id: resolve
+        env:
+          ASTROLIFT_TOKEN: ${{ secrets.astrolift_token }}
+        run: |
+          REPO=$(astro ci image-repo \
+            --app "${{ inputs.app_name }}" \
+            --workload "${{ matrix.workload }}" \
+            --env "${{ inputs.environment }}")
+          echo "repo=${REPO}" >> $GITHUB_OUTPUT
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build + push with registry cache
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.workload }}
+          push: true
+          tags: |
+            ${{ steps.resolve.outputs.repo }}:${{ github.sha }}
+            ${{ steps.resolve.outputs.repo }}:latest
+          cache-from: type=registry,ref=${{ inputs.cache_repo || format('{0}:buildcache', steps.resolve.outputs.repo) }}
+          cache-to: type=registry,ref=${{ inputs.cache_repo || format('{0}:buildcache', steps.resolve.outputs.repo) }},mode=max
+
+      - name: Deploy
+        env:
+          ASTROLIFT_TOKEN: ${{ secrets.astrolift_token }}
+        run: |
+          ARGS=(
+            ci deploy
+            --app "${{ inputs.app_name }}"
+            --workload "${{ matrix.workload }}"
+            --image "${{ steps.resolve.outputs.repo }}:${{ github.sha }}"
+            --env "${{ inputs.environment }}"
+          )
+          if [[ "${{ inputs.async_mode }}" == "true" ]]; then
+            ARGS+=( --no-wait )
+          fi
+          astro "${ARGS[@]}"
+
+      - name: Status report
+        if: always()
+        env:
+          ASTROLIFT_TOKEN: ${{ secrets.astrolift_token }}
+        run: |
+          astro ci status \
+            --app "${{ inputs.app_name }}" \
+            --workload "${{ matrix.workload }}" \
+            --env "${{ inputs.environment }}" \
+            --commit "${{ github.sha }}" || true

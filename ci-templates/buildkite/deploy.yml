@@ -1,0 +1,69 @@
+# Astrolift Buildkite plugin pipeline.
+# Tenant pipeline:
+#
+#   steps:
+#     - plugins:
+#         - astrolift/deploy#v1:
+#             app_name: my-app
+#             environment: production
+#             manifest: astrolift.toml      # default
+#             force_build_all: false        # default
+
+steps:
+  - label: ":mag: Detect changed workloads"
+    key: astrolift-detect
+    command: |
+      set -euo pipefail
+      curl -fsSL https://install.astrolift.dev | sh
+      export PATH="$HOME/.astrolift/bin:$PATH"
+      MANIFEST="${ASTROLIFT_MANIFEST:-astrolift.toml}"
+      DIFF_BASE="${BUILDKITE_PULL_REQUEST_BASE_BRANCH:-${BUILDKITE_PIPELINE_DEFAULT_BRANCH:-main}}"
+      if [ "${ASTROLIFT_FORCE_BUILD_ALL:-false}" = "true" ]; then
+        WORKLOADS=$(./ci-templates/shared/path-filter.sh --manifest "$MANIFEST" --format changed)
+      else
+        WORKLOADS=$(./ci-templates/shared/path-filter.sh --manifest "$MANIFEST" --format changed --diff-base "$DIFF_BASE")
+      fi
+      echo "Workloads: $WORKLOADS"
+      buildkite-agent meta-data set "astrolift_workloads" "$WORKLOADS"
+      # Fail open if no changes — uploads an empty step group so the
+      # pipeline still completes successfully.
+      if [ "$WORKLOADS" = "[]" ]; then
+        echo "No changed workloads; skipping build."
+        exit 0
+      fi
+      python3 -c "
+import json, sys
+workloads = json.loads('$WORKLOADS')
+import yaml
+steps = []
+for wl in workloads:
+    steps.append({
+        'label': f':rocket: Build + deploy {wl}',
+        'depends_on': ['astrolift-detect'],
+        'env': {'ASTROLIFT_WORKLOAD': wl},
+        'plugins': [{
+            'oidc#v0.2.1': {
+                'audience': 'https://astrolift.dev/ci',
+                'environment-variable': 'ASTROLIFT_OIDC_TOKEN',
+            },
+        }],
+        'command': '.buildkite/astrolift-build-deploy.sh',
+    })
+print(yaml.safe_dump({'steps': steps}))
+" | buildkite-agent pipeline upload
+
+# Companion script lives at .buildkite/astrolift-build-deploy.sh in the
+# tenant repo (ships with the plugin install). Skeleton:
+#
+#   #!/usr/bin/env bash
+#   set -euo pipefail
+#   astro ci registry-login --app "$ASTROLIFT_APP" --workload "$ASTROLIFT_WORKLOAD" --env "$ASTROLIFT_ENVIRONMENT"
+#   IMAGE_REPO=$(astro ci image-repo --app "$ASTROLIFT_APP" --workload "$ASTROLIFT_WORKLOAD" --env "$ASTROLIFT_ENVIRONMENT")
+#   docker buildx build --push \
+#     --tag "${IMAGE_REPO}:${BUILDKITE_COMMIT}" \
+#     --tag "${IMAGE_REPO}:latest" \
+#     --cache-from "type=registry,ref=${IMAGE_REPO}:buildcache" \
+#     --cache-to "type=registry,ref=${IMAGE_REPO}:buildcache,mode=max" \
+#     "./${ASTROLIFT_WORKLOAD}"
+#   astro ci deploy --app "$ASTROLIFT_APP" --workload "$ASTROLIFT_WORKLOAD" \
+#     --image "${IMAGE_REPO}:${BUILDKITE_COMMIT}" --env "$ASTROLIFT_ENVIRONMENT"
