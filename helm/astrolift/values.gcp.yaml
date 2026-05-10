@@ -1,0 +1,65 @@
+# GCP-specific overrides for the Astrolift Helm chart.
+# Usage: helm install astrolift ./helm/astrolift -f ./helm/astrolift/values.gcp.yaml
+#
+# Empty-string placeholders are filled in by the operator from the
+# Terraform-generated `gcp/outputs/<env>.env`.
+
+ingress:
+  enabled: true
+  # GCP Ingress is typically backed by GKE Ingress + Google-managed cert;
+  # operators with Gateway API can switch to Gateway resources instead.
+  className: gce
+  annotations:
+    networking.gke.io/v1beta1.FrontendConfig: ""
+    kubernetes.io/ingress.allow-http: "false"
+
+# Default service account for the control plane. Workload Identity binds
+# this Kubernetes ServiceAccount to a Google Service Account under the
+# astrolift/ prefix (matched by the GCP provider plugin's identity_wi.py).
+serviceAccount:
+  create: true
+  annotations:
+    iam.gke.io/gcp-service-account: ""
+
+# -----------------------------------------------------------------------------
+# Per-service overrides
+# -----------------------------------------------------------------------------
+
+api:
+  image:
+    repository: ""
+  env:
+    GCP_PROJECT_ID: ""
+    GCP_REGION: ""
+    DATABASE_URL: ""
+    DATABASE_INSTANCE_CONNECTION: ""
+    REDIS_URL: ""
+    GCS_ARTIFACTS_BUCKET: ""
+    SECRET_MANAGER_PREFIX: "astrolift"
+    DJANGO_SETTINGS_MODULE: "astrolift.settings.production"
+
+ui:
+  image:
+    repository: ""
+  env:
+    NEXT_PUBLIC_API_URL: ""
+    NEXT_PUBLIC_PLATFORM_DOMAIN: ""
+
+worker:
+  image:
+    repository: ""
+  env:
+    GCP_PROJECT_ID: ""
+    GCP_REGION: ""
+    DATABASE_URL: ""
+    DATABASE_INSTANCE_CONNECTION: ""
+    REDIS_URL: ""
+    GCS_ARTIFACTS_BUCKET: ""
+    SECRET_MANAGER_PREFIX: "astrolift"
+    TEMPORAL_HOST: ""
+
+status:
+  image:
+    repository: ""
+  env:
+    PLATFORM_DOMAIN: ""
