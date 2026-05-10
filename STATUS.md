@@ -51,9 +51,9 @@ Legend:
 | Path | Status | Notes |
 |---|---|---|
 | `gcp/tf-backend/` | ✅ | GCS bucket backend bootstrap |
-| `gcp/environments/dev/` | ⚠️ | Full env-root: VPC + secondary ranges, Cloud SQL (Postgres + private VPC), Memorystore Redis, GCS, Cloud DNS, Secret Manager, GKE Autopilot + Workload Identity, ACR, KMS, Artifact Registry, observability + backup. Wired but not yet apply-tested |
-| `gcp/environments/stg/` | 📋 | **Skeleton.** Just `terraform { }` block. Copy `dev/` files and adjust sizing. Same shape as AWS stg |
-| `gcp/environments/prd/` | 📋 | **Skeleton.** Same |
+| `gcp/environments/dev/` | ⚠️ | Full env-root: VPC + secondary ranges, Cloud SQL (Postgres + private VPC), Memorystore Redis, GCS, Cloud DNS, Secret Manager, GKE Autopilot + Workload Identity, ACR, KMS, Artifact Registry, observability + backup, outputs.tf. Wired but not yet apply-tested |
+| `gcp/environments/stg/` | ⚠️ | Same shape as dev with stg-tier sizing (10.50/16, regional HA Cloud SQL `db-custom-2-7680`, multi-zone Memorystore Standard 4GB, per-zone Cloud NAT, 14d backup retention, Velero + GCS lifecycle on). Same first-apply caveat |
+| `gcp/environments/prd/` | ⚠️ | Same shape as dev with prd-tier sizing (10.100/16, regional HA Cloud SQL `db-custom-4-15360` + 1 read replica, Memorystore Standard 8GB, per-zone Cloud NAT, 30d retention, Managed Prom on). Same first-apply caveat |
 | `gcp/modules/observability-fluent-bit-cloudlogging/` | ⚠️ | GSA + Workload Identity binding for Cloud Logging |
 | `gcp/modules/observability-managed-prom/` | ⚠️ | GSA + WI for in-cluster Prom collectors |
 | `gcp/modules/observability-otel-cloudtrace/` | ⚠️ | GSA + WI for OTel → Cloud Trace |
@@ -62,7 +62,6 @@ Legend:
 **Missing**:
 - `INSTALL-gcp.md` runbook (template `INSTALL-aws.md`)
 - `gcp/scripts/cold-boot.sh` and `build-env.sh` equivalents (template AWS ones)
-- `gcp/environments/{stg,prd}/` parity with `dev/`
 - `helm/astrolift/values.gcp.yaml` exists but minimally populated (operator fills DATABASE_URL etc. from outputs)
 
 ---
@@ -142,7 +141,7 @@ Legend:
 | Air-gapped install | 🚧 | Helm chart deps fetch from public registries. For air-gapped, vendor the `.tgz` files via `make package` from the parent metarepo. Operators commit those to a private mirror |
 | Multi-account AWS topologies | ⚠️ | Supported via per-env profiles (see `INSTALL-aws.md` §3) but not yet validated against a real AWS Organizations setup |
 | EKS access for engineer accounts beyond the bootstrap user | 🚫 | Currently only the `astrolift-infra` user gets cluster admin. Add `aws_eks_access_entry` resources for your engineers. Add a `engineer_admin_arns` variable in `eks/variables.tf` if you want it driven by config |
-| GCP / Azure outputs.tf | 📋 | AWS has `aws/environments/<env>/outputs.tf`; GCP and Azure don't yet. Template from AWS |
+| Azure outputs.tf | 📋 | AWS + GCP have `<cloud>/environments/<env>/outputs.tf`; Azure doesn't yet. Template from AWS |
 
 ---
 

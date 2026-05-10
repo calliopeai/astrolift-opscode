@@ -1,0 +1,30 @@
+# Astrolift — GCP prd environment
+#
+# Copy this file to terraform.tfvars and fill in your values.
+# `region`, `project_id`, and `base_domain` are required (no defaults).
+
+region      = "us-west1"
+project_id  = "my-gcp-project"
+base_domain = "platform.example.com"   # YOU bring this — must be a Cloud DNS zone you own (or have NS-delegated)
+
+# Runtime toggles (defaults: Cloud Run on, GKE off — flip if you want GKE only)
+# enable_cloud_run = true
+# enable_gke       = false
+
+# Observability + backup (prd=full)
+# enable_fluent_bit       = true
+# enable_managed_prom     = true
+# enable_otel_cloudtrace  = true
+# enable_velero           = true
+# enable_gcs_lifecycle    = true
+
+# Cloud SQL (prd-tier defaults — regional HA + 1 read replica)
+# db_tier                  = "db-custom-4-15360"
+# db_availability_type     = "REGIONAL"
+# db_disk_size             = 250
+# db_backup_retention_days = 30
+# db_read_replica_count    = 1
+
+# Memorystore (prd-tier defaults)
+# redis_memory_size_gb = 8
+# redis_tier           = "STANDARD_HA"

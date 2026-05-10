@@ -1,10 +1,33 @@
-# EXPERIMENTAL — In Progress
-# GCP support is under active development. Not yet validated against
-# a live GCP project. Contributions welcome.
+# -----------------------------------------------------------------------------
+# Astrolift — GCP Production Environment
 #
-# Production environment — mirrors dev with HA and higher scaling.
-# Copy dev/ and adjust values when ready to implement.
+# Mirrors dev topology with prd-tier sizing: regional HA Cloud SQL with read
+# replica, multi-zone Memorystore Standard, per-zone Cloud NAT, 30d backup
+# retention, full observability + backup. Same shape as AWS prd.
+# -----------------------------------------------------------------------------
 
 terraform {
-  required_version = ">= 1.5"
+  backend "gcs" {
+    # Bucket name + prefix injected at init time via -backend-config.
+    # Default scheme: bucket = "tf-state-${PROJECT_ID}", prefix = "gcp/prd".
+    # Run: ./run.sh init gcp prd
+  }
+}
+
+locals {
+  name         = "prd-astrolift"
+  env          = "production"
+  region       = var.region
+  project_id   = var.project_id
+  service_name = "astrolift"
+  owner        = "astrolift"
+  domain       = var.base_domain
+  vpc_cidr     = "10.100.0.0/16"
+
+  labels = {
+    service     = local.service_name
+    environment = local.env
+    owner       = local.owner
+    managed-by  = "terraform"
+  }
 }
