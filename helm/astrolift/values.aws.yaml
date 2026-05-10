@@ -1,5 +1,9 @@
-# AWS-specific overrides for astrolift Helm chart.
+# AWS-specific overrides for the Astrolift Helm chart.
 # Usage: helm install astrolift ./helm/astrolift -f ./helm/astrolift/values.aws.yaml
+#
+# Empty-string placeholders below are filled in by the operator from the
+# Terraform-generated `aws/outputs/<env>.env`. For local dev with kind, use
+# values.k8s.yaml instead.
 
 ingress:
   enabled: true
@@ -9,9 +13,61 @@ ingress:
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS": 443}]'
     alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
-    alb.ingress.kubernetes.io/certificate-arn: ""  # set to ACM cert ARN
+    alb.ingress.kubernetes.io/healthcheck-path: /health/
+    alb.ingress.kubernetes.io/certificate-arn: ""
 
+# Default service account for the control plane. The IRSA role lives under
+# /astrolift/ (matched by the AWS provider plugin's identity_irsa.py default
+# role_path). Per-pod service accounts can override this.
 serviceAccount:
   create: true
   annotations:
-    eks.amazonaws.com/role-arn: ""  # set to IRSA role ARN
+    eks.amazonaws.com/role-arn: ""
+
+# -----------------------------------------------------------------------------
+# Per-service overrides
+#
+# Each section sets:
+#   - image.repository : full ECR URL (e.g. ACCOUNT.dkr.ecr.REGION.amazonaws.com/astrolift/api)
+#   - env              : runtime environment variables sourced from outputs
+#
+# The chart's values.yaml has the structural defaults (replicaCount, ports,
+# resource requests). Only override what's AWS-specific here.
+# -----------------------------------------------------------------------------
+
+api:
+  image:
+    repository: ""
+  env:
+    AWS_REGION: ""
+    AWS_S3_REGION_NAME: ""
+    AWS_S3_BUCKET: ""
+    DATABASE_URL: ""
+    REDIS_URL: ""
+    SECRETS_MANAGER_PREFIX: "/astrolift"
+    DJANGO_SETTINGS_MODULE: "astrolift.settings.production"
+
+ui:
+  image:
+    repository: ""
+  env:
+    NEXT_PUBLIC_API_URL: ""
+    NEXT_PUBLIC_PLATFORM_DOMAIN: ""
+
+worker:
+  image:
+    repository: ""
+  env:
+    AWS_REGION: ""
+    AWS_S3_REGION_NAME: ""
+    AWS_S3_BUCKET: ""
+    DATABASE_URL: ""
+    REDIS_URL: ""
+    SECRETS_MANAGER_PREFIX: "/astrolift"
+    TEMPORAL_HOST: ""
+
+status:
+  image:
+    repository: ""
+  env:
+    PLATFORM_DOMAIN: ""

@@ -185,3 +185,35 @@ resource "aws_vpc_endpoint" "secretsmanager" {
     Endpoint = "true"
   })
 }
+
+# STS endpoint — required for IRSA token exchange when tenant pods assume
+# roles under /astrolift/ via the OIDC provider.
+resource "aws_vpc_endpoint" "sts" {
+  vpc_id              = module.vpc.vpc_id
+  service_name        = "com.amazonaws.${local.region}.sts"
+  vpc_endpoint_type   = "Interface"
+  private_dns_enabled = true
+  subnet_ids          = module.vpc.private_subnets
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+
+  tags = merge(local.tags, {
+    Name     = "${local.name}-sts-endpoint"
+    Endpoint = "true"
+  })
+}
+
+# KMS endpoint — required for envelope-encrypted access to Secrets Manager,
+# RDS storage encryption, and EFS encryption keys from private subnets.
+resource "aws_vpc_endpoint" "kms" {
+  vpc_id              = module.vpc.vpc_id
+  service_name        = "com.amazonaws.${local.region}.kms"
+  vpc_endpoint_type   = "Interface"
+  private_dns_enabled = true
+  subnet_ids          = module.vpc.private_subnets
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+
+  tags = merge(local.tags, {
+    Name     = "${local.name}-kms-endpoint"
+    Endpoint = "true"
+  })
+}
