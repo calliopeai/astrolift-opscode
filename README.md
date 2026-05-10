@@ -194,3 +194,5 @@ Open follow-ups tracked in GitHub Issues.
 MIT. See [LICENSE](LICENSE).
 
 Copyright (c) 2026 Calliope Labs Inc. All Rights Reserved. Calliope AI is a trademark of Calliope Labs Inc.
+
+Portions of the framework underlying this repo are derived from **[boilerworks-opscode](https://github.com/ConflictHQ/boilerworks-opscode)** (Copyright (c) Conflict LLC, MIT-licensed). Tip of the hat 🎩
