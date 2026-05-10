@@ -1,0 +1,18 @@
+# Astrolift — AWS stg environment
+#
+# Copy this file to terraform.tfvars and fill in your values.
+# `region` and `base_domain` are required (no defaults).
+
+region      = "us-west-2"
+base_domain = "stg.example.com"   # YOU bring this — must be a Route53 hosted zone you own (or have NS-delegated)
+
+# Runtime toggles
+# enable_ecs = true
+# enable_eks = true
+
+# Observability + backup (stg=most)
+# enable_fluent_bit  = true
+# enable_amp_amg     = false
+# enable_otel_xray   = true
+# enable_velero      = true
+# enable_aws_backup  = true

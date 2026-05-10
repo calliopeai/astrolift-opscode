@@ -20,7 +20,7 @@ locals {
   location     = var.location
   service_name = "astrolift"
   owner        = "astrolift"
-  domain       = "dev.astrolift.net"
+  domain       = var.base_domain
   vnet_cidr    = "10.0.0.0/16"
 
   tags = {

@@ -1,0 +1,19 @@
+# Astrolift — GCP dev environment
+#
+# Copy this file to terraform.tfvars and fill in your values.
+# `region`, `project_id`, and `base_domain` are required (no defaults).
+
+region      = "us-west1"
+project_id  = "my-gcp-project"
+base_domain = "dev.example.com"   # YOU bring this — must be a Cloud DNS zone you own (or have NS-delegated)
+
+# Runtime toggles (defaults: Cloud Run on, GKE off in dev — flip if you want GKE only)
+# enable_cloud_run = true
+# enable_gke       = false
+
+# Observability + backup (dev=light)
+# enable_fluent_bit       = true
+# enable_managed_prom     = false
+# enable_otel_cloudtrace  = true
+# enable_velero           = false
+# enable_gcs_lifecycle    = false

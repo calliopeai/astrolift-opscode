@@ -33,7 +33,7 @@ The platform substitutes these per render:
 | `REPO_URL` | `git@github.com:acme/frontend.git` | tenant app's source repo |
 | `REPO_REVISION` | `main` / a branch / tag | per-deploy |
 | `CLUSTER_NAME` | `prd-us-west-2-tenant` | astrolift cluster registration |
-| `BASE_ZONE` | `acme.myastrolift.net` | per-install + per-org config |
+| `BASE_ZONE` | `acme.example.com` | per-install + per-org config (operator-supplied) |
 | `SECRET_STORE_REF` | `cloud-secret-store` | ExternalSecrets ClusterSecretStore name |
 
 Substitution happens server-side in the platform; these YAMLs are

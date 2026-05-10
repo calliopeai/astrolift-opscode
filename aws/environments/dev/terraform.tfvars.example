@@ -1,0 +1,18 @@
+# Astrolift — AWS dev environment
+#
+# Copy this file to terraform.tfvars and fill in your values.
+# `region` and `base_domain` are required (no defaults).
+
+region      = "us-west-2"
+base_domain = "dev.example.com"   # YOU bring this — must be a Route53 hosted zone you own (or have NS-delegated)
+
+# Runtime toggles (defaults: ECS on, EKS off in dev — flip if you want EKS only)
+# enable_ecs = true
+# enable_eks = false
+
+# Observability + backup (dev=light)
+# enable_fluent_bit  = true
+# enable_amp_amg     = false
+# enable_otel_xray   = true
+# enable_velero      = false
+# enable_aws_backup  = false

@@ -34,6 +34,7 @@ get_list() { echo "${TF_OUT}" | jq -r --arg k "$1" '.[$k].value | join(",") // "
 
 REGION=$(get aws_region)
 ACCOUNT=$(get aws_account_id)
+BASE_DOMAIN=$(get base_domain)
 EKS_NAME=$(get eks_cluster_name)
 EKS_ENDPOINT=$(get eks_cluster_endpoint)
 EKS_OIDC=$(get eks_oidc_provider_arn)
@@ -69,6 +70,7 @@ cat > "${OUT_FILE}" <<EOF
 AWS_REGION=${REGION}
 AWS_ACCOUNT_ID=${ACCOUNT}
 ENVIRONMENT=${ENV}
+BASE_DOMAIN=${BASE_DOMAIN}
 
 # Cluster
 EKS_CLUSTER_NAME=${EKS_NAME}

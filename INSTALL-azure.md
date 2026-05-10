@@ -32,8 +32,11 @@ on Container Apps.
 - A subscription per environment (recommended) or one shared
 - A user/role with `Owner` or `User Access Administrator` to bootstrap
   the infra service principal (one-time)
-- A registered Azure DNS zone for the install's base zone (e.g.
-  `myastrolift.net`); Astrolift creates per-env subdomains
+- A registered Azure DNS zone you own. **You bring your own zone** —
+  anything you control (e.g. `dev.acme.com`, `platform.acme.io`).
+  You'll pass it to Terraform as `base_domain` (see § 5). Astrolift
+  creates per-env subdomains under it. If your zone lives at another
+  registrar, NS-delegate it to Azure DNS first
 - Quota for: at least 4 vCPUs in the chosen region, 1 Postgres
   Flexible Server, 1 Cache for Redis, 1 AKS cluster
 - The subscription's resource providers will be auto-registered by
@@ -116,8 +119,9 @@ This creates:
 ## 5. Configure environment variables (toggles + sizing)
 
 ```hcl
-# azure/environments/dev/terraform.tfvars
-location = "westus2"
+# azure/environments/dev/terraform.tfvars  (copy from terraform.tfvars.example)
+location    = "westus2"
+base_domain = "dev.acme.com"   # YOU bring this — must be an Azure DNS zone you own
 
 # Runtime toggles
 enable_container_apps        = true   # control plane
@@ -134,6 +138,9 @@ enable_postgres_geo_backup   = false  # GRS replication; default false in dev
 enable_blob_lifecycle        = false  # Cool/Archive transitions
 enable_azure_backup_vault    = false  # Recovery Services Vault
 ```
+
+> Each env ships a `terraform.tfvars.example` you can copy. The real
+> `terraform.tfvars` is gitignored.
 
 ---
 
@@ -185,6 +192,7 @@ First-apply takes ~25-35 min. Milestones:
 
 helm install astrolift ./helm/astrolift \
   -f ./helm/astrolift/values.azure.yaml \
+  --set global.platformDomain="$BASE_DOMAIN" \
   --set serviceAccount.annotations."azure\.workload\.identity/client-id"="$UAMI_CLIENT_ID" \
   --set podLabels."azure\.workload\.identity/use"="true" \
   --set api.image.repository="$ACR_LOGIN_SERVER/astrolift/api" \

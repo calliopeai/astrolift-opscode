@@ -147,7 +147,7 @@ This repo is MIT-licensed and designed to be forked. Likely customizations:
 | Per-env sizing (DB tier, replica counts, retention) | `<cloud>/environments/<env>/variables.tf` |
 | Toggle defaults (which optional pieces install) | `<cloud>/environments/<env>/variables.tf` |
 | ECR / Artifact Registry / ACR repo names | matches `PROJECT` slug from `config.env` |
-| DNS base zone | `<cloud>/environments/<env>/main.tf` `local.domain` |
+| DNS base zone | `base_domain` in `<cloud>/environments/<env>/terraform.tfvars` (required, no default — bring your own zone) |
 | KMS keys | TODO — `kms_key_id` overrides not yet wired |
 | Observability backend (Datadog / Honeycomb / etc.) | `helm/tenant-telemetry/otel-collector/values-<cloud>.yaml` |
 

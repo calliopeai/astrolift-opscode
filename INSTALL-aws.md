@@ -34,8 +34,12 @@ Fargate.
 - A user/role with `AdministratorAccess` (or equivalent) to run the
   CloudFormation stack in §3 — this only happens once and provisions a
   scoped-down `astrolift-infra` user that Terraform uses.
-- A registered Route53 hosted zone for the install's base zone (e.g.
-  `myastrolift.net`) — Astrolift creates per-env subdomains under it.
+- A registered Route53 hosted zone you own. **You bring your own
+  zone** — anything you control (e.g. `dev.acme.com`, `platform.acme.io`,
+  `astro.acme.internal`). You'll pass it to Terraform as `base_domain`
+  in § 5. Astrolift creates per-env subdomains and an ACM wildcard cert
+  under it. If your registrar isn't Route53, NS-delegate the zone to
+  Route53 first; otherwise certificate DNS-01 validation fails.
 
 ### Repo
 
@@ -127,8 +131,9 @@ backup toggles. Defaults are dev=light / stg=most / prd=full. Override
 in a `terraform.tfvars` file inside the env directory:
 
 ```hcl
-# aws/environments/dev/terraform.tfvars
-region = "us-west-2"
+# aws/environments/dev/terraform.tfvars  (copy from terraform.tfvars.example)
+region      = "us-west-2"
+base_domain = "dev.acme.com"   # YOU bring this — must be a Route53 zone you own
 
 # Runtime toggles
 enable_ecs                    = true   # control plane on Fargate
@@ -146,6 +151,11 @@ enable_s3_glacier_lifecycle   = true
 enable_fluent_bit             = true
 enable_otel_xray              = true
 ```
+
+> Each env (`dev`, `stg`, `prd`) ships a `terraform.tfvars.example` —
+> copy it, fill in `base_domain` for that env, and you're done. The
+> file is gitignored by default so your zone names won't leak into a
+> fork.
 
 See **§ Toggle reference** below for the full matrix.
 
@@ -222,6 +232,7 @@ terraform output -json > /tmp/dev-outputs.json
 cd ../../../
 helm install astrolift ./helm/astrolift \
   -f ./helm/astrolift/values.aws.yaml \
+  --set global.platformDomain="$BASE_DOMAIN" \
   --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"="$IRSA_ROLE_ARN" \
   --set api.image.repository="$ECR_REGISTRY/astrolift/api" \
   --set ui.image.repository="$ECR_REGISTRY/astrolift/ui" \
@@ -271,7 +282,8 @@ astro app deploy --org demo --name hello --env staging
 
 If everything is wired up, `astro app status --org demo --name hello`
 shows the deploy progressing through `building → pushing → applying →
-ready`. Hit `https://hello.demo.dev.astrolift.app` to see it live.
+ready`. Hit `https://hello.demo.<your-base-domain>` to see it live
+(e.g. `https://hello.demo.dev.acme.com` for the values above).
 
 ---
 

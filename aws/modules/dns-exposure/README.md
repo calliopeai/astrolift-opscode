@@ -8,7 +8,7 @@ Route53 DNS records with optional Cloudflare delegation for exposing services.
 module "dns" {
   source = "../../modules/dns-exposure"
 
-  domain       = "app.astrolift.net"
+  domain       = "app.example.com"   # whatever zone you own
   alb_dns_name = module.app.alb_dns_name
   alb_zone_id  = module.app.alb_zone_id
   zone_id      = module.app.route53_zone_id

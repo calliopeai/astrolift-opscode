@@ -3,6 +3,11 @@ variable "region" {
   type        = string
 }
 
+variable "base_domain" {
+  description = "Base DNS zone for this environment (e.g. dev.acme.com). Operator must own this zone or have NS delegation to Route53."
+  type        = string
+}
+
 # -----------------------------------------------------------------------------
 # Dev Environment Variables
 # Override defaults via terraform.tfvars or -var flags.

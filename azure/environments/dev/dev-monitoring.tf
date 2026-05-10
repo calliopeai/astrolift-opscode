@@ -26,7 +26,7 @@ resource "azurerm_monitor_action_group" "alerts" {
   # Uncomment and configure when ready:
   # email_receiver {
   #   name          = "ops-team"
-  #   email_address = "ops@astrolift.net"
+  #   email_address = "ops@${var.base_domain}"
   # }
 
   tags = merge(local.tags, {

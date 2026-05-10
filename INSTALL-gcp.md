@@ -33,8 +33,11 @@ on Cloud Run.
   project where dev/stg/prd run in separate VPCs
 - A user/SA with `roles/owner` on the project to bootstrap the infra
   service account
-- A registered Cloud DNS zone for the install's base zone (e.g.
-  `myastrolift.net`); Astrolift creates per-env subdomains under it
+- A registered Cloud DNS zone you own. **You bring your own zone** —
+  anything you control (e.g. `dev.acme.com`, `platform.acme.io`).
+  You'll pass it to Terraform as `base_domain` (see § 5). Astrolift
+  creates per-env subdomains under it. If your zone lives at another
+  registrar, NS-delegate it to Cloud DNS first
 - Quota for: at least 4 vCPUs in the chosen region, 1 Cloud SQL
   instance, 1 Memorystore Redis, 1 GKE Autopilot cluster
 
@@ -131,9 +134,10 @@ Each `gcp/environments/<env>/variables.tf` exposes runtime + obs +
 backup toggles. Override in `terraform.tfvars`:
 
 ```hcl
-# gcp/environments/dev/terraform.tfvars
-region     = "us-west1"
-project_id = "my-project"
+# gcp/environments/dev/terraform.tfvars  (copy from terraform.tfvars.example)
+region      = "us-west1"
+project_id  = "my-project"
+base_domain = "dev.acme.com"   # YOU bring this — must be a Cloud DNS zone you own
 
 # Runtime toggles
 enable_cloud_run            = true   # control plane on Cloud Run
@@ -144,6 +148,9 @@ enable_velero               = false  # cluster snapshots (default false in dev; 
 enable_gcs_lifecycle        = false  # Coldline/Archive transitions
 enable_cloudsql_pitr        = true   # Cloud SQL point-in-time recovery
 ```
+
+> Each env ships a `terraform.tfvars.example` you can copy. The real
+> `terraform.tfvars` is gitignored.
 
 See **§ Toggle reference** below.
 
@@ -206,6 +213,7 @@ Validates:
 
 helm install astrolift ./helm/astrolift \
   -f ./helm/astrolift/values.gcp.yaml \
+  --set global.platformDomain="$BASE_DOMAIN" \
   --set serviceAccount.annotations."iam\.gke\.io/gcp-service-account"="$WI_GSA_EMAIL" \
   --set api.image.repository="$ARTIFACT_REGISTRY/astrolift/api" \
   --set ui.image.repository="$ARTIFACT_REGISTRY/astrolift/ui" \
@@ -246,7 +254,8 @@ astro app register --org demo --name hello
 astro app deploy --org demo --name hello --env staging
 ```
 
-Hit `https://hello.demo.dev.astrolift.app` to see it live.
+Hit `https://hello.demo.<your-base-domain>` to see it live (e.g.
+`https://hello.demo.dev.acme.com` for the values above).
 
 ---
 

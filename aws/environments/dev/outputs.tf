@@ -18,6 +18,11 @@ output "environment" {
   value       = local.env
 }
 
+output "base_domain" {
+  description = "Operator-supplied base DNS zone for this environment"
+  value       = local.domain
+}
+
 output "vpc_id" {
   description = "VPC ID"
   value       = module.vpc.vpc_id

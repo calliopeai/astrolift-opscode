@@ -2,8 +2,12 @@
 # Override per-cloud with values.<cloud>.yaml.
 
 global:
-  # Platform domain used for default branding and ingress hostnames.
-  platformDomain: "astrolift.app"
+  # Platform domain used for ingress hostnames + default branding.
+  # REQUIRED: operator must override with their own DNS zone, e.g.
+  #   --set global.platformDomain=dev.acme.com
+  # or via -f values-<env>.yaml. The default below is a placeholder
+  # and will not resolve in your environment.
+  platformDomain: "example.com"
   imagePullPolicy: IfNotPresent
 
 # -- astrolift-api: Django backend, GraphQL, REST

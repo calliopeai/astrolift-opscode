@@ -15,7 +15,7 @@ locals {
   region       = var.region
   service_name = "astrolift"
   owner        = "astrolift"
-  domain       = "dev.astrolift.net"
+  domain       = var.base_domain
   vpc_cidr     = "10.0.0.0/16"
 
   azs = ["${local.region}a", "${local.region}b", "${local.region}c"]

@@ -268,8 +268,8 @@ AWS Account(s)
 |   +-- ElastiCache: Redis 7.1, single node
 |   +-- S3: {name}-files (versioned, encrypted, CORS)
 |   +-- Secrets Manager: db-credentials, app-secrets
-|   +-- ACM: wildcard cert (*.dev.astrolift.app)
-|   +-- Route53: dev.astrolift.app
+|   +-- ACM: wildcard cert (*.${var.base_domain})
+|   +-- Route53: ${var.base_domain}  (operator-supplied per-env zone)
 |   +-- CloudWatch: 7-day log retention, CPU/memory/5xx alarms
 |   +-- SNS: alerts topic
 |

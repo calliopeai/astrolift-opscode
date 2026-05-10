@@ -12,7 +12,7 @@ module "app" {
 
   project_name    = "astrolift"
   environment     = "dev"
-  domain          = "dev.astrolift.net"
+  domain          = "dev.example.com"   # whatever zone you own
   vpc_cidr        = "10.0.0.0/16"
   container_image = "123456789.dkr.ecr.us-west-2.amazonaws.com/astrolift:latest"
 

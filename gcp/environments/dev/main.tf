@@ -17,7 +17,7 @@ locals {
   project_id   = var.project_id
   service_name = "astrolift"
   owner        = "astrolift"
-  domain       = "dev.astrolift.net"
+  domain       = var.base_domain
 
   labels = {
     service     = local.service_name

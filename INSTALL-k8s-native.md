@@ -33,6 +33,15 @@ Longhorn for storage, Velero for backup, etc.).
 | **Bare-metal / on-prem prod** | At least 3 nodes; CNI (Cilium/Calico) installed; storage available for Longhorn (one disk or path per node); load balancer (MetalLB / kube-VIP) for ingress |
 | **Existing managed cluster** (EKS/GKE/AKS without our cloud-side IaC) | All of the above plus check that the cluster's StorageClass setup doesn't conflict with the tier-mapping below |
 
+### DNS
+
+Pick a base zone for the install before you start. **You bring your
+own** — `astro.acme.internal`, `platform.acme.com`, `astrolift.lab`,
+or anything you can resolve from clients that need to reach the
+dashboard. For `kind` and air-gapped lab installs you can use a
+`.local` / `.lab` suffix and stub it in `/etc/hosts`. Pass it to Helm
+as `--set global.platformDomain=<your-zone>` when you reach § 6.
+
 ### Repo
 
 ```bash
@@ -255,6 +264,7 @@ helm install astrolift ./helm/astrolift \
   --namespace astrolift-system \
   -f ./helm/astrolift/values.k8s.yaml \
   -f values.k8s.local.yaml \
+  --set global.platformDomain="astrolift.example.local" \
   --wait --timeout 10m
 ```
 

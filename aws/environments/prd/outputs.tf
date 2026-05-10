@@ -18,6 +18,11 @@ output "environment" {
   value       = local.env
 }
 
+output "base_domain" {
+  description = "Operator-supplied base DNS zone for this environment"
+  value       = local.domain
+}
+
 output "vpc_id" {
   description = "VPC ID"
   value       = module.vpc.vpc_id
@@ -49,15 +54,20 @@ output "eks_oidc_provider_arn" {
   value       = var.enable_eks ? module.eks[0].oidc_provider_arn : ""
 }
 
-# Datastores
+# Datastores — prd uses Aurora Serverless v2; dev/stg use single-instance RDS
 output "rds_endpoint" {
-  description = "RDS Postgres endpoint"
-  value       = aws_db_instance.postgres.endpoint
+  description = "Aurora cluster writer endpoint"
+  value       = aws_rds_cluster.aurora.endpoint
+}
+
+output "rds_reader_endpoint" {
+  description = "Aurora cluster reader endpoint (load-balanced across replicas)"
+  value       = aws_rds_cluster.aurora.reader_endpoint
 }
 
 output "rds_database_name" {
   description = "RDS database name"
-  value       = aws_db_instance.postgres.db_name
+  value       = aws_rds_cluster.aurora.database_name
 }
 
 output "redis_endpoint" {
