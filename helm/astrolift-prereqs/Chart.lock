@@ -11,5 +11,11 @@ dependencies:
 - name: metallb
   repository: https://metallb.github.io/metallb
   version: 0.14.9
-digest: sha256:f904989a72a466b98376191c90bfe09222355118d932a2d63bc734c9b517fb9a
-generated: "2026-05-09T19:37:01.063684-06:00"
+- name: longhorn
+  repository: https://charts.longhorn.io
+  version: 1.7.2
+- name: rook-ceph
+  repository: https://charts.rook.io/release
+  version: v1.15.5
+digest: sha256:e65b7dfe9f01441cd3c417cf315fcb95b5f2c44cd8785e2a677f87594efd4d8c
+generated: "2026-05-09T19:39:19.839826-06:00"

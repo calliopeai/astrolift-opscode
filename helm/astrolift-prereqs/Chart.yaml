@@ -40,3 +40,14 @@ dependencies:
     version: "0.14.9"
     repository: "https://metallb.github.io/metallb"
     condition: metallb.enabled
+
+  # Storage operators
+  - name: longhorn
+    version: "1.7.2"
+    repository: "https://charts.longhorn.io"
+    condition: longhorn.enabled
+  - name: rook-ceph
+    version: "v1.15.5"
+    repository: "https://charts.rook.io/release"
+    condition: rookCeph.enabled
+    alias: rook-ceph

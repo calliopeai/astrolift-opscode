@@ -113,9 +113,40 @@ ingressNginx:
 metallb:
   enabled: false
 
+# -----------------------------------------------------------------------------
 # Storage operators
+# -----------------------------------------------------------------------------
+
+# Longhorn: distributed block storage with optional RWX. Single-replica is
+# fine for dev; replica-2 / replica-3 in stg/prd. The astrolift StorageClass
+# tier map (storageClasses.longhorn) drives how tenant PVs bind.
+# Upstream values: https://github.com/longhorn/longhorn/tree/master/chart
 longhorn:
   enabled: false
+  defaultSettings:
+    defaultDataPath: /var/lib/longhorn/
+    createDefaultDiskLabeledNodes: true
+    defaultReplicaCount: 2
+  ingress:
+    # Don't expose the Longhorn UI by default; operators turn this on
+    # if they want the admin dashboard reachable.
+    enabled: false
+
+# Rook Ceph: distributed block + filesystem (RWX via CephFS) for clusters
+# that need shared-volume semantics across many pods. Operators typically
+# enable EITHER Longhorn OR Rook Ceph, not both.
+# This subchart installs the operator only; the actual cluster + pools
+# come from rook-ceph-cluster (operators add separately or via GitOps).
+# Upstream values: https://github.com/rook/rook/tree/master/deploy/charts/rook-ceph
+rook-ceph:
+  enabled: false
+  resources:
+    requests: { cpu: "100m", memory: "256Mi" }
+    limits:   { cpu: "500m", memory: "512Mi" }
+  csi:
+    enableCephfsDriver: true
+    enableRbdDriver: true
+
 rookCeph:
   enabled: false
 
