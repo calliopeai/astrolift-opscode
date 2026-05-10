@@ -38,3 +38,7 @@ Thumbs.db
 *~
 .idea/
 .vscode/
+
+# Generated env files (contain DB credentials)
+aws/outputs/*.env
+!aws/outputs/*.env.example
