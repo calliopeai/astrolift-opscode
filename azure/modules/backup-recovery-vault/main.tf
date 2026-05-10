@@ -24,9 +24,8 @@ resource "azurerm_backup_policy_vm" "default" {
   policy_type = "V2"
 
   backup {
-    frequency     = "Daily"
-    time          = "02:00"
-    hour_interval = 24
+    frequency = "Daily"
+    time      = "02:00"
   }
 
   retention_daily {

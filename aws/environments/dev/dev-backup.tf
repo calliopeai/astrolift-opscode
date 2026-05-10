@@ -11,7 +11,6 @@ module "velero" {
 
   name                      = local.name
   tags                      = local.tags
-  cluster_name              = module.eks[0].cluster_name
   cluster_oidc_provider_arn = module.eks[0].oidc_provider_arn
   backup_bucket_name        = "${local.name}-velero-backups"
   create_bucket             = true

@@ -15,22 +15,18 @@ module "fluent_bit" {
   count  = var.enable_gke && var.enable_fluent_bit ? 1 : 0
   source = "../../modules/observability-fluent-bit-cloudlogging"
 
-  name         = local.name
-  project_id   = local.project_id
-  labels       = local.labels
-  cluster_name = var.enable_gke ? module.gke[0].cluster_name : ""
-  wi_pool      = local.wi_pool
+  name       = local.name
+  project_id = local.project_id
+  wi_pool    = local.wi_pool
 }
 
 module "managed_prom" {
   count  = var.enable_gke && var.enable_managed_prom ? 1 : 0
   source = "../../modules/observability-managed-prom"
 
-  name         = local.name
-  project_id   = local.project_id
-  labels       = local.labels
-  cluster_name = var.enable_gke ? module.gke[0].cluster_name : ""
-  wi_pool      = local.wi_pool
+  name       = local.name
+  project_id = local.project_id
+  wi_pool    = local.wi_pool
 }
 
 module "otel_cloudtrace" {
@@ -39,8 +35,6 @@ module "otel_cloudtrace" {
 
   name                 = local.name
   project_id           = local.project_id
-  labels               = local.labels
-  cluster_name         = var.enable_gke ? module.gke[0].cluster_name : ""
   wi_pool              = local.wi_pool
   namespace            = "observability"
   service_account_name = "otel-collector"

@@ -18,24 +18,12 @@ jobs:
   terraform:
     name: terraform fmt + validate
     runs-on: ubuntu-latest
-    env:
-      # Shared plugin cache + symlink mode: providers download once,
-      # subsequent inits across the ~50 .tf-bearing dirs symlink into
-      # their own .terraform/ instead of copying. Without this, the
-      # 14GB runner /tmp fills up around the 30th gcp/azure dir.
-      # ${{ runner.temp }} isn't available in job-level env, so use a
-      # literal path under /tmp (GHA runners allow writes here).
-      TF_PLUGIN_CACHE_DIR: /tmp/.terraform-plugin-cache
-      TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE: "true"
     steps:
       - uses: actions/checkout@v4
 
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.9"
-
-      - name: prepare plugin cache
-        run: mkdir -p "$TF_PLUGIN_CACHE_DIR"
 
       - name: terraform fmt -check
         run: terraform fmt -check -recursive -diff

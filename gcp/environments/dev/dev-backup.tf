@@ -13,7 +13,6 @@ module "velero" {
   name               = local.name
   project_id         = local.project_id
   labels             = local.labels
-  cluster_name       = var.enable_gke ? module.gke[0].cluster_name : ""
   wi_pool            = local.wi_pool
   backup_bucket_name = "${local.name}-velero-backups"
   create_bucket      = true
