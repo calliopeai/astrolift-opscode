@@ -1,7 +1,6 @@
 variable "region" {
-  description = "AWS region for this environment"
+  description = "AWS region for this environment (no default; set via aws/config.env or -var)"
   type        = string
-  default     = "us-west-2"
 }
 
 # -----------------------------------------------------------------------------
@@ -20,6 +19,68 @@ variable "enable_eks" {
   description = "Enable EKS Kubernetes container runtime"
   type        = bool
   default     = false
+}
+
+# -----------------------------------------------------------------------------
+# Observability + backup toggles
+#
+# Optional components. Defaults follow a dev=light / stg=most / prd=full ladder.
+# Self-hosted operators flip these to opt out of managed services they lack
+# access to (e.g. AMP/AMG aren't available on every account).
+# -----------------------------------------------------------------------------
+
+variable "enable_fluent_bit" {
+  description = "Deploy Fluent Bit DaemonSet shipping pod logs to CloudWatch Logs"
+  type        = bool
+  default     = true
+}
+
+variable "enable_in_cluster_prom" {
+  description = "Run Prometheus + Grafana in-cluster (default observability stack)"
+  type        = bool
+  default     = true
+}
+
+variable "enable_amp_amg" {
+  description = "Provision Amazon Managed Prometheus + Amazon Managed Grafana"
+  type        = bool
+  default     = true
+}
+
+variable "enable_otel_xray" {
+  description = "Deploy OpenTelemetry collector with X-Ray exporter for traces"
+  type        = bool
+  default     = true
+}
+
+variable "enable_opensearch" {
+  description = "Provision OpenSearch cluster for log aggregation"
+  type        = bool
+  default     = true
+}
+
+variable "enable_velero" {
+  description = "Install Velero for cluster-wide PV snapshots to S3"
+  type        = bool
+  default     = true
+}
+
+variable "enable_aws_backup" {
+  description = "Wire RDS, EFS, DynamoDB into AWS Backup vault + plan"
+  type        = bool
+  default     = true
+}
+
+variable "enable_dynamodb_pitr" {
+  description = "Enable point-in-time recovery on DynamoDB tables"
+  type        = bool
+  default     = true
+}
+
+variable "enable_s3_glacier_lifecycle" {
+  description = "Apply Glacier transition lifecycle to S3 bucket noncurrent versions"
+  type        = bool
+  default     = true
 }
 
 # ECS settings
