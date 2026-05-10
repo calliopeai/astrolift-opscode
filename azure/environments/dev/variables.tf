@@ -3,12 +3,6 @@ variable "location" {
   type        = string
 }
 
-variable "resource_group_name" {
-  description = "Override for the resource group name (defaults to {name}-rg)"
-  type        = string
-  default     = ""
-}
-
 # -----------------------------------------------------------------------------
 # Dev Environment Variables
 # Override defaults via terraform.tfvars or -var flags.
@@ -36,12 +30,6 @@ variable "enable_aks" {
 
 variable "enable_fluent_bit" {
   description = "Deploy Fluent Bit DaemonSet shipping pod logs to Log Analytics"
-  type        = bool
-  default     = true
-}
-
-variable "enable_in_cluster_prom" {
-  description = "Run Prometheus + Grafana in-cluster (default observability stack)"
   type        = bool
   default     = true
 }

@@ -14,11 +14,6 @@ variable "labels" {
   default     = {}
 }
 
-variable "cluster_name" {
-  description = "GKE cluster name Velero runs against"
-  type        = string
-}
-
 variable "wi_pool" {
   description = "Workload Identity pool"
   type        = string

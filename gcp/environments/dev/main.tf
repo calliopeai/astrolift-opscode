@@ -17,9 +17,7 @@ locals {
   project_id   = var.project_id
   service_name = "astrolift"
   owner        = "astrolift"
-  ver          = "1.0"
   domain       = "dev.astrolift.net"
-  vpc_cidr     = "10.0.0.0/16"
 
   labels = {
     service     = local.service_name
@@ -29,8 +27,3 @@ locals {
   }
 }
 
-data "google_project" "current" {
-  project_id = local.project_id
-}
-
-data "google_client_config" "current" {}

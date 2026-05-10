@@ -9,11 +9,6 @@ variable "tags" {
   default     = {}
 }
 
-variable "cluster_name" {
-  description = "EKS cluster name to deploy the OTel collector into"
-  type        = string
-}
-
 variable "cluster_oidc_provider_arn" {
   description = "EKS cluster OIDC provider ARN (for IRSA trust policy)"
   type        = string

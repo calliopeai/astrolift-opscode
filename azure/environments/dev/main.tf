@@ -20,7 +20,6 @@ locals {
   location     = var.location
   service_name = "astrolift"
   owner        = "astrolift"
-  ver          = "1.0"
   domain       = "dev.astrolift.net"
   vnet_cidr    = "10.0.0.0/16"
 
@@ -34,8 +33,6 @@ locals {
 }
 
 data "azurerm_client_config" "current" {}
-data "azurerm_subscription" "current" {}
-
 # -----------------------------------------------------------------------------
 # Resource Group
 # -----------------------------------------------------------------------------

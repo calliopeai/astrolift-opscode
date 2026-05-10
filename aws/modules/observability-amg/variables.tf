@@ -9,16 +9,6 @@ variable "tags" {
   default     = {}
 }
 
-variable "amp_workspace_id" {
-  description = "AMP workspace ID this Grafana instance reads from"
-  type        = string
-}
-
-variable "amp_workspace_query_endpoint" {
-  description = "AMP workspace query endpoint (used as Prometheus datasource URL)"
-  type        = string
-}
-
 variable "admin_user_arns" {
   description = "List of IAM principal ARNs granted Grafana admin role"
   type        = list(string)

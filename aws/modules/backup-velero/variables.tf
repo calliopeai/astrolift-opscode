@@ -9,11 +9,6 @@ variable "tags" {
   default     = {}
 }
 
-variable "cluster_name" {
-  description = "EKS cluster name Velero runs against"
-  type        = string
-}
-
 variable "cluster_oidc_provider_arn" {
   description = "EKS cluster OIDC provider ARN (for IRSA trust policy)"
   type        = string
@@ -28,12 +23,6 @@ variable "create_bucket" {
   description = "Create the backup bucket; false if it's pre-provisioned and shared"
   type        = bool
   default     = true
-}
-
-variable "schedule_cron" {
-  description = "Cron expression for the default daily backup schedule"
-  type        = string
-  default     = "0 2 * * *"
 }
 
 variable "retention_days" {

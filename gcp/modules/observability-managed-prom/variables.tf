@@ -8,17 +8,6 @@ variable "project_id" {
   type        = string
 }
 
-variable "labels" {
-  description = "Resource labels"
-  type        = map(string)
-  default     = {}
-}
-
-variable "cluster_name" {
-  description = "GKE cluster name whose metrics get collected"
-  type        = string
-}
-
 variable "wi_pool" {
   description = "Workload Identity pool (PROJECT_ID.svc.id.goog)"
   type        = string

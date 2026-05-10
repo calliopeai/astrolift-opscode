@@ -30,18 +30,23 @@ jobs:
 
       - name: terraform validate (modules + envs across all clouds)
         run: |
-          set -euo pipefail
+          set -uo pipefail
           # Walk the cloud trees and init+validate every directory that
-          # contains .tf files. Offline init (no providers downloaded).
+          # contains .tf files. Offline init pulls providers but doesn't
+          # set up backends. Errors surface in full so failures are
+          # actionable from the run log alone.
           dirs=$(find aws gcp azure -type d \
             ! -path '*/.terraform*' \
             ! -path '*/charts/*' \
             -exec sh -c 'ls "$1"/*.tf >/dev/null 2>&1 && echo "$1"' _ {} \; | sort -u)
           fail=0
           for d in $dirs; do
-            echo "=== $d ==="
-            if ! (cd "$d" && terraform init -backend=false -input=false >/dev/null 2>&1 && terraform validate); then
-              echo "FAIL: $d"
+            echo "::group::$d"
+            if (cd "$d" && terraform init -backend=false -input=false && terraform validate); then
+              echo "::endgroup::"
+            else
+              echo "::endgroup::"
+              echo "::error::validate failed in $d"
               fail=1
             fi
           done
@@ -55,16 +60,12 @@ jobs:
       - uses: terraform-linters/setup-tflint@v4
       - name: tflint --init
         run: tflint --init
-      # --force runs tflint informationally for now: output annotates
-      # findings on the run but doesn't fail the job. Pre-existing
-      # warnings (unused locals/data sources) need triage before we
-      # flip this off — tracked in #17.
       - name: tflint aws
-        run: tflint --recursive --chdir aws --format compact --force
+        run: tflint --recursive --chdir aws --format compact
       - name: tflint gcp
-        run: tflint --recursive --chdir gcp --format compact --force
+        run: tflint --recursive --chdir gcp --format compact
       - name: tflint azure
-        run: tflint --recursive --chdir azure --format compact --force
+        run: tflint --recursive --chdir azure --format compact
 
   helm:
     name: helm lint + template

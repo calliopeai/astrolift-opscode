@@ -15,7 +15,6 @@ locals {
   region       = var.region
   service_name = "astrolift"
   owner        = "astrolift"
-  ver          = "1.0"
   domain       = "stg.astrolift.net"
   vpc_cidr     = "10.50.0.0/16"
 
@@ -37,4 +36,3 @@ locals {
 }
 
 data "aws_caller_identity" "current" {}
-data "aws_region" "current" {}

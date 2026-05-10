@@ -9,16 +9,6 @@ variable "tags" {
   default     = {}
 }
 
-variable "region" {
-  description = "AWS region for the AMP workspace"
-  type        = string
-}
-
-variable "cluster_name" {
-  description = "EKS cluster name whose metrics get scraped"
-  type        = string
-}
-
 variable "cluster_oidc_provider_arn" {
   description = "EKS cluster OIDC provider ARN (for IRSA write-side role)"
   type        = string

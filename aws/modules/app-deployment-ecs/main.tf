@@ -24,8 +24,7 @@ terraform {
 }
 
 locals {
-  name   = "${var.environment}-${var.project_name}"
-  region = var.region
+  name = "${var.environment}-${var.project_name}"
 
   azs = ["${var.region}a", "${var.region}b", "${var.region}c"]
 
@@ -43,8 +42,6 @@ locals {
     ManagedBy   = "terraform"
   })
 }
-
-data "aws_caller_identity" "current" {}
 
 # =============================================================================
 # VPC

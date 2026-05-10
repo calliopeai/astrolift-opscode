@@ -35,12 +35,6 @@ variable "enable_fluent_bit" {
   default     = true
 }
 
-variable "enable_in_cluster_prom" {
-  description = "Run Prometheus + Grafana in-cluster (default observability stack)"
-  type        = bool
-  default     = true
-}
-
 variable "enable_amp_amg" {
   description = "Provision Amazon Managed Prometheus + Amazon Managed Grafana"
   type        = bool
@@ -67,12 +61,6 @@ variable "enable_velero" {
 
 variable "enable_aws_backup" {
   description = "Wire RDS, EFS, DynamoDB into AWS Backup vault + plan"
-  type        = bool
-  default     = true
-}
-
-variable "enable_dynamodb_pitr" {
-  description = "Enable point-in-time recovery on DynamoDB tables"
   type        = bool
   default     = true
 }
