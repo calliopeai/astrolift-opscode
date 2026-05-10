@@ -58,6 +58,11 @@ jobs:
   tflint:
     name: tflint
     runs-on: ubuntu-latest
+    env:
+      # `tflint --chdir <subdir>` doesn't auto-discover .tflint.hcl from
+      # the parent dir. Pin the path so the rule disables (e.g.
+      # terraform_unused_declarations) apply cluster-wide.
+      TFLINT_CONFIG_FILE: ${{ github.workspace }}/.tflint.hcl
     steps:
       - uses: actions/checkout@v4
       - uses: terraform-linters/setup-tflint@v4
