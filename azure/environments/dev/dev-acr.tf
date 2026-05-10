@@ -19,8 +19,6 @@ resource "azurerm_container_registry" "main" {
     type = "SystemAssigned"
   }
 
-  retention_policy_in_days = 30
-
   tags = local.tags
 
   depends_on = [azurerm_resource_provider_registration.required]
