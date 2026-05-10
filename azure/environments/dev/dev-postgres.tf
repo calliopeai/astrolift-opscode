@@ -36,7 +36,7 @@ resource "azurerm_postgresql_flexible_server" "main" {
   administrator_password = random_password.db_password.result
 
   backup_retention_days        = 7
-  geo_redundant_backup_enabled = false
+  geo_redundant_backup_enabled = var.enable_postgres_geo_backup
 
   zone = "1"
 
