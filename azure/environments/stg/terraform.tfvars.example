@@ -1,0 +1,29 @@
+# Astrolift — Azure staging environment
+#
+# Copy this file to terraform.tfvars and fill in your values.
+# `location` and `base_domain` are required (no defaults).
+
+location    = "westus2"
+base_domain = "stg.example.com" # YOU bring this — must be an Azure DNS zone you own (or have NS-delegated)
+
+# Runtime toggles (defaults: Container Apps on, AKS off — flip if you want AKS only)
+# enable_container_apps = true
+# enable_aks            = false
+
+# Observability + backup (stg=most)
+# enable_fluent_bit            = true
+# enable_managed_prom_grafana  = false
+# enable_otel_azuremonitor     = true
+# enable_workload_identity     = true
+# enable_velero                = true
+# enable_postgres_geo_backup   = false
+# enable_blob_lifecycle        = true
+# enable_azure_backup_vault    = true
+
+# Sizing tier (stg)
+# postgres_sku   = "GP_Standard_D2s_v3"
+# redis_sku      = "Standard"
+# redis_family   = "C"
+# redis_capacity = 1
+# container_cpu    = 1.0
+# container_memory = "2Gi"

@@ -72,8 +72,8 @@ Legend:
 |---|---|---|
 | `azure/tf-backend/` | ✅ | Storage Account backend |
 | `azure/environments/dev/` | ⚠️ | Full env-root: VNet + subnets + NAT, Postgres Flex (private DNS), Redis Cache, Storage, Azure DNS, Key Vault, Log Analytics, AKS scaffold, Container Apps with UAMI, ACR, platform UAMI, observability + backup. Wired but not apply-tested |
-| `azure/environments/stg/` | 📋 | **Skeleton** |
-| `azure/environments/prd/` | 📋 | **Skeleton** |
+| `azure/environments/stg/` | ⚠️ | Same as dev with stg-tier sizing (per-zone NAT, GP_Standard_D2s_v3 zone-redundant Postgres, Standard C1 Redis, 14d retention, ZRS storage). Same first-apply caveat |
+| `azure/environments/prd/` | ⚠️ | Same with prd-tier sizing (GP_Standard_D4s_v3 zone-redundant Postgres + read replica, Premium P1 clustered Redis, 35d retention + GRS, GZRS storage, Premium ACR + KV w/ purge protection, AMP+AMG on). Same first-apply caveat |
 | `azure/modules/observability-fluent-bit-loganalytics/` | ⚠️ | UAMI + federated credential for Log Analytics ingestion |
 | `azure/modules/observability-managed-prom-grafana/` | ⚠️ | Monitor Workspace + Managed Grafana |
 | `azure/modules/observability-otel-azuremonitor/` | ⚠️ | UAMI for OTel → Azure Monitor |
@@ -81,9 +81,7 @@ Legend:
 | `azure/modules/backup-recovery-vault/` | ⚠️ | Recovery Services Vault + daily VM backup policy |
 
 **Missing**:
-- `INSTALL-azure.md` runbook
 - `azure/scripts/` helpers
-- `azure/environments/{stg,prd}/` parity
 - **App Gateway** for AKS Ingress — currently no `enable_app_gateway` toggle wired; use ingress-nginx via `astrolift-prereqs` or roll your own
 
 ---
@@ -141,7 +139,6 @@ Legend:
 | Air-gapped install | 🚧 | Helm chart deps fetch from public registries. For air-gapped, vendor the `.tgz` files via `make package` from the parent metarepo. Operators commit those to a private mirror |
 | Multi-account AWS topologies | ⚠️ | Supported via per-env profiles (see `INSTALL-aws.md` §3) but not yet validated against a real AWS Organizations setup |
 | EKS access for engineer accounts beyond the bootstrap user | 🚫 | Currently only the `astrolift-infra` user gets cluster admin. Add `aws_eks_access_entry` resources for your engineers. Add a `engineer_admin_arns` variable in `eks/variables.tf` if you want it driven by config |
-| Azure outputs.tf | 📋 | AWS + GCP have `<cloud>/environments/<env>/outputs.tf`; Azure doesn't yet. Template from AWS |
 
 ---
 
