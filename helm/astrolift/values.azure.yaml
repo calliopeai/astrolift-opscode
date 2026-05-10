@@ -1,0 +1,70 @@
+# Azure-specific overrides for the Astrolift Helm chart.
+# Usage: helm install astrolift ./helm/astrolift -f ./helm/astrolift/values.azure.yaml
+#
+# Empty-string placeholders are filled in by the operator from the
+# Terraform-generated `azure/outputs/<env>.env`.
+
+ingress:
+  enabled: true
+  # Operators on AKS use Application Gateway (AGIC) or nginx-ingress;
+  # toggle the className based on what's installed on the cluster.
+  className: webapprouting.kubernetes.azure.com
+  annotations: {}
+
+# Default service account for the control plane. Workload Identity
+# Federation binds this Kubernetes ServiceAccount to a User-Assigned
+# Managed Identity (UAMI) under astrolift-<ns>-<sa> (matched by the
+# Azure provider plugin's identity_federated.py).
+serviceAccount:
+  create: true
+  annotations:
+    azure.workload.identity/client-id: ""
+podLabels:
+  azure.workload.identity/use: "true"
+
+# -----------------------------------------------------------------------------
+# Per-service overrides
+# -----------------------------------------------------------------------------
+
+api:
+  image:
+    repository: ""
+  env:
+    AZURE_SUBSCRIPTION_ID: ""
+    AZURE_TENANT_ID: ""
+    AZURE_LOCATION: ""
+    DATABASE_URL: ""
+    REDIS_URL: ""
+    AZURE_STORAGE_ACCOUNT: ""
+    AZURE_STORAGE_CONTAINER: ""
+    KEY_VAULT_URI: ""
+    KEY_VAULT_SECRET_PREFIX: "astrolift"
+    DJANGO_SETTINGS_MODULE: "astrolift.settings.production"
+
+ui:
+  image:
+    repository: ""
+  env:
+    NEXT_PUBLIC_API_URL: ""
+    NEXT_PUBLIC_PLATFORM_DOMAIN: ""
+
+worker:
+  image:
+    repository: ""
+  env:
+    AZURE_SUBSCRIPTION_ID: ""
+    AZURE_TENANT_ID: ""
+    AZURE_LOCATION: ""
+    DATABASE_URL: ""
+    REDIS_URL: ""
+    AZURE_STORAGE_ACCOUNT: ""
+    AZURE_STORAGE_CONTAINER: ""
+    KEY_VAULT_URI: ""
+    KEY_VAULT_SECRET_PREFIX: "astrolift"
+    TEMPORAL_HOST: ""
+
+status:
+  image:
+    repository: ""
+  env:
+    PLATFORM_DOMAIN: ""
