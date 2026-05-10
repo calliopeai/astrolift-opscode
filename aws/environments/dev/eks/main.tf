@@ -96,6 +96,13 @@ module "eks" {
   })
 }
 
+# TODO: Container Insights addon (see STATUS.md). To enable:
+#   resource "aws_eks_addon" "observability" {
+#     cluster_name = aws_eks_cluster.main.name
+#     addon_name   = "amazon-cloudwatch-observability"
+#   }
+# (also requires the matching IRSA role + IAM policy attachment)
+
 # =============================================================================
 # Addon IAM Roles (IRSA)
 # =============================================================================

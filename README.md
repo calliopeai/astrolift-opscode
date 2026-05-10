@@ -1,5 +1,9 @@
 # astrolift-opscode
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Terraform](https://img.shields.io/badge/terraform-%3E%3D1.5-7B42BC.svg)](https://www.terraform.io/)
+[![Helm](https://img.shields.io/badge/helm-%3E%3D3.16-0F1689.svg)](https://helm.sh/)
+
 Terraform + Helm infrastructure-as-code for installing the
 [Astrolift](https://astrolift.app) platform on a cloud you control.
 Fork this, set a few config values, and you have an opinionated
@@ -13,6 +17,10 @@ multi-tenant PaaS install path.
 > skeletons. The k8s-native path (no managed cloud — vanilla Kubernetes
 > + Longhorn + CNPG + friends) targets local `kind` dev clusters and
 > bare-metal installs.
+>
+> **Read [STATUS.md](STATUS.md) before forking or filing an issue** —
+> it's the canonical map of what's complete, partial, stub, and
+> intentionally limited.
 
 ---
 
@@ -169,6 +177,7 @@ Open follow-ups tracked in GitHub Issues.
 
 ## Documentation
 
+- **[STATUS.md](STATUS.md)** — what's complete / partial / stub / known-limited (read this first)
 - **[bootstrap.md](bootstrap.md)** — infrastructure topology + first-time setup conventions
 - **[INSTALL-aws.md](INSTALL-aws.md)** — AWS customer-operator runbook
 - **[INSTALL-k8s-native.md](INSTALL-k8s-native.md)** — vanilla Kubernetes / bare-metal runbook
