@@ -23,7 +23,9 @@ jobs:
       # subsequent inits across the ~50 .tf-bearing dirs symlink into
       # their own .terraform/ instead of copying. Without this, the
       # 14GB runner /tmp fills up around the 30th gcp/azure dir.
-      TF_PLUGIN_CACHE_DIR: ${{ runner.temp }}/.terraform-plugin-cache
+      # ${{ runner.temp }} isn't available in job-level env, so use a
+      # literal path under /tmp (GHA runners allow writes here).
+      TF_PLUGIN_CACHE_DIR: /tmp/.terraform-plugin-cache
       TF_PLUGIN_CACHE_MAY_BREAK_DEPENDENCY_LOCK_FILE: "true"
     steps:
       - uses: actions/checkout@v4
