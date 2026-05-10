@@ -8,6 +8,7 @@ name: opscode pr ci
 on:
   pull_request:
     branches: [main]
+  workflow_call:
   workflow_dispatch:
 
 permissions:
