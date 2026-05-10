@@ -63,13 +63,53 @@ clusterIssuer:
 # Subchart toggles (subcharts wired in follow-up commits)
 # -----------------------------------------------------------------------------
 
+# -----------------------------------------------------------------------------
 # Cluster essentials
+# Each block is also passed wholesale to the subchart, so any key the
+# upstream chart accepts can be set under here (in addition to `enabled`,
+# which only controls Chart.yaml condition gating).
+# -----------------------------------------------------------------------------
+
+# cert-manager: ACME / private-CA TLS issuance.
+# Upstream values: https://github.com/cert-manager/cert-manager/tree/master/deploy/charts/cert-manager
 certManager:
   enabled: false
+  installCRDs: true
+
+# external-dns: keeps DNS records in sync with Ingress / Gateway hosts.
+# Set `provider` to aws / google / azure / cloudflare / pdns / etc. per cluster.
+# Upstream values: https://github.com/kubernetes-sigs/external-dns/tree/master/charts/external-dns
 externalDns:
   enabled: false
+  provider: ""
+  policy: sync
+  txtOwnerId: astrolift
+  sources:
+    - service
+    - ingress
+
+# ingress-nginx: default ingress controller for HTTP/HTTPS.
+# Aliased to `ingress-nginx` so the values key matches the subchart name
+# expected by the upstream chart's templates.
+# Upstream values: https://github.com/kubernetes/ingress-nginx/tree/main/charts/ingress-nginx
+ingress-nginx:
+  enabled: false
+  controller:
+    ingressClassResource:
+      name: nginx
+      default: true
+    service:
+      type: LoadBalancer
+    metrics:
+      enabled: true
+
+# Convenience alias so the toggle key matches the rest of the file's camelCase
+# pattern; the actual subchart values live under `ingress-nginx:` above.
 ingressNginx:
   enabled: false
+
+# MetalLB: bare-metal LoadBalancer (skip on cloud — they bring their own).
+# Upstream values: https://github.com/metallb/metallb/tree/main/charts/metallb
 metallb:
   enabled: false
 

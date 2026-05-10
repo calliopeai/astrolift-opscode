@@ -19,7 +19,24 @@ maintainers:
   - name: Astrolift
     url: https://astrolift.dev
 
-# Subchart dependencies are added in follow-up commits. This commit ships
-# the wrapper structure + glue templates (storage classes, cluster issuer)
-# so operators can pull a clean chart that compiles before the heavy
-# prereqs land on top of it.
+# Subchart dependencies. Each is gated by its `condition` key in values.yaml.
+# Run `helm dependency update ./helm/astrolift-prereqs` to populate charts/.
+dependencies:
+  # Cluster essentials
+  - name: cert-manager
+    version: "1.16.2"
+    repository: "https://charts.jetstack.io"
+    condition: certManager.enabled
+  - name: external-dns
+    version: "1.15.0"
+    repository: "https://kubernetes-sigs.github.io/external-dns/"
+    condition: externalDns.enabled
+  - name: ingress-nginx
+    version: "4.11.3"
+    repository: "https://kubernetes.github.io/ingress-nginx"
+    condition: ingressNginx.enabled
+    alias: ingress-nginx
+  - name: metallb
+    version: "0.14.9"
+    repository: "https://metallb.github.io/metallb"
+    condition: metallb.enabled
