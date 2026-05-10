@@ -150,15 +150,76 @@ rook-ceph:
 rookCeph:
   enabled: false
 
-# Managed-service operators (match astrolift-providers/k8s_native/preflight.py)
+# -----------------------------------------------------------------------------
+# Managed-service operators
+#
+# Match astrolift-providers/k8s_native/preflight.py REQUIREMENTS so that
+# tenant managed-service kinds (postgres, kafka, redis, mysql, etc.)
+# preflight clean against a fresh prereqs install. Each operator installs
+# CRDs that downstream tenant CRDs depend on.
+# -----------------------------------------------------------------------------
+
+# CloudNativePG: Postgres operator. Tenant Postgres clusters bind via the
+# k8s_native CNPGPostgresDriver (see preflight.py REQUIREMENTS["postgres",
+# "cnpg"]).
+# Upstream values: https://github.com/cloudnative-pg/charts/tree/main/charts/cloudnative-pg
 cnpg:
   enabled: false
+  monitoring:
+    podMonitorEnabled: false  # set true when prometheus subchart is on
+
+# Strimzi: Kafka operator. Tenant Kafka clusters bind via the k8s_native
+# Kafka driver. Strimzi's chart only installs the operator; tenant Kafka
+# clusters come from Kafka CRDs in tenant namespaces.
+# Upstream values: https://github.com/strimzi/strimzi-kafka-operator/tree/main/helm-charts/helm3/strimzi-kafka-operator
 strimzi:
   enabled: false
+  watchAnyNamespace: true
+
+# OT-Container-Kit Redis Operator: Redis cluster + standalone + sentinel.
+# Aliased as `redis-operator` to match the upstream chart name.
+# Upstream values: https://github.com/OT-CONTAINER-KIT/helm-charts/tree/main/charts/redis-operator
+redis-operator:
+  enabled: false
+  watchNamespace: ""  # empty = cluster-wide
+
 redisOperator:
   enabled: false
+
+# HashiCorp Vault: secrets, dynamic credentials, transit encryption.
+# HA + Raft + auto-unseal are recommended for prod; operators wire
+# auto-unseal to a cloud KMS (AWS / GCP / Azure) per cluster.
+# Upstream values: https://github.com/hashicorp/vault-helm
 vault:
   enabled: false
+  server:
+    ha:
+      enabled: true
+      replicas: 3
+      raft:
+        enabled: true
+        setNodeId: true
+    # auto-unseal: operators uncomment + populate one of the seal blocks
+    # below per cloud — examples kept here for visibility.
+    #
+    # extraEnvironmentVars:
+    #   VAULT_LOG_LEVEL: info
+    # extraSecretEnvironmentVars: []
+    #
+    # AWS KMS auto-unseal example:
+    # extraVolumes:
+    #   - type: secret
+    #     name: vault-kms-creds
+    # ha:
+    #   config: |
+    #     ui = true
+    #     listener "tcp" { tls_disable = 1, address = "[::]:8200" }
+    #     storage "raft" { path = "/vault/data" }
+    #     seal "awskms" { region = "us-west-2", kms_key_id = "alias/vault-unseal" }
+  ui:
+    enabled: true
+  injector:
+    enabled: true
 
 # Backup
 velero:

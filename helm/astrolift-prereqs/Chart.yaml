@@ -51,3 +51,24 @@ dependencies:
     repository: "https://charts.rook.io/release"
     condition: rookCeph.enabled
     alias: rook-ceph
+
+  # Managed-service operators — match astrolift-providers/k8s_native/preflight.py
+  # REQUIREMENTS so tenant managed-service kinds (postgres, kafka, redis,
+  # mysql, etc.) preflight clean against a fresh prereqs install.
+  - name: cloudnative-pg
+    version: "0.22.0"
+    repository: "https://cloudnative-pg.github.io/charts"
+    condition: cnpg.enabled
+  - name: strimzi-kafka-operator
+    version: "0.43.0"
+    repository: "https://strimzi.io/charts/"
+    condition: strimzi.enabled
+  - name: redis-operator
+    version: "0.20.0"
+    repository: "https://ot-container-kit.github.io/helm-charts/"
+    condition: redisOperator.enabled
+    alias: redis-operator
+  - name: vault
+    version: "0.28.1"
+    repository: "https://helm.releases.hashicorp.com"
+    condition: vault.enabled

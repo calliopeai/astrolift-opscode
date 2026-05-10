@@ -17,5 +17,17 @@ dependencies:
 - name: rook-ceph
   repository: https://charts.rook.io/release
   version: v1.15.5
-digest: sha256:e65b7dfe9f01441cd3c417cf315fcb95b5f2c44cd8785e2a677f87594efd4d8c
-generated: "2026-05-09T19:39:19.839826-06:00"
+- name: cloudnative-pg
+  repository: https://cloudnative-pg.github.io/charts
+  version: 0.22.0
+- name: strimzi-kafka-operator
+  repository: https://strimzi.io/charts/
+  version: 0.43.0
+- name: redis-operator
+  repository: https://ot-container-kit.github.io/helm-charts/
+  version: 0.20.0
+- name: vault
+  repository: https://helm.releases.hashicorp.com
+  version: 0.28.1
+digest: sha256:143af149e8ae3183099bfe118a90ac0bdec066a9140ea148a5f41a700d2ee14b
+generated: "2026-05-09T19:41:27.237297-06:00"
