@@ -1,0 +1,81 @@
+# OTel collector values for AWS — exports traces to X-Ray and metrics to
+# CloudWatch via the awsemf exporter. Pair with the observability-otel-xray
+# module's irsa_role_arn output and annotate the SA.
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: "0.108.0"
+
+mode: deployment
+
+serviceAccount:
+  create: true
+  name: otel-collector
+  annotations:
+    eks.amazonaws.com/role-arn: ""
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc: { endpoint: 0.0.0.0:4317 }
+        http: { endpoint: 0.0.0.0:4318 }
+
+  processors:
+    batch: {}
+    memory_limiter:
+      limit_mib: 800
+      spike_limit_mib: 200
+      check_interval: 5s
+    resource:
+      attributes:
+        - key: cluster.name
+          value: ${CLUSTER_NAME}
+          action: insert
+        - key: astrolift.dev/org
+          value: ${ASTROLIFT_ORG}
+          action: insert
+
+  exporters:
+    awsxray:
+      region: ${AWS_REGION}
+      no_verify_ssl: false
+    awsemf:
+      region: ${AWS_REGION}
+      namespace: Astrolift/Tenant
+      log_group_name: /aws/eks/${CLUSTER_NAME}/otel-metrics
+      log_stream_name: '{ClusterName}/{TaskDefinitionFamily}'
+      dimension_rollup_option: NoDimensionRollup
+    debug:
+      verbosity: basic
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, resource, batch]
+        exporters: [awsxray]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, resource, batch]
+        exporters: [awsemf]
+      logs:
+        receivers: [otlp]
+        processors: [memory_limiter, resource, batch]
+        exporters: [debug]
+
+env:
+  - name: AWS_REGION
+    value: ""
+  - name: CLUSTER_NAME
+    value: ""
+  - name: ASTROLIFT_ORG
+    value: ""

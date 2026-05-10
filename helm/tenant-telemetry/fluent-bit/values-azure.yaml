@@ -1,0 +1,85 @@
+# Fluent-bit values for Azure — ships pod logs to Log Analytics.
+# Pair with observability-fluent-bit-loganalytics module outputs
+# (uami_client_id); annotate the SA with azure.workload.identity/client-id.
+
+image:
+  repository: cr.fluentbit.io/fluent/fluent-bit
+  tag: "3.1.10"
+
+serviceAccount:
+  create: true
+  name: fluent-bit
+  annotations:
+    azure.workload.identity/client-id: ""
+
+podLabels:
+  azure.workload.identity/use: "true"
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+
+kind: DaemonSet
+
+config:
+  service: |
+    [SERVICE]
+        Daemon Off
+        Flush 5
+        Log_Level info
+        Parsers_File /fluent-bit/etc/parsers.conf
+        HTTP_Server On
+        HTTP_Listen 0.0.0.0
+        HTTP_Port 2020
+        Health_Check On
+
+  inputs: |
+    [INPUT]
+        Name tail
+        Path /var/log/containers/*.log
+        multiline.parser docker, cri
+        Tag kube.*
+        Mem_Buf_Limit 50MB
+        Skip_Long_Lines On
+
+  filters: |
+    [FILTER]
+        Name kubernetes
+        Match kube.*
+        Merge_Log On
+        Keep_Log Off
+        K8S-Logging.Parser On
+        Labels On
+    [FILTER]
+        Name modify
+        Match kube.*
+        Add cluster_name ${CLUSTER_NAME}
+        Add astrolift.dev/org ${ASTROLIFT_ORG}
+
+  outputs: |
+    [OUTPUT]
+        Name azure
+        Match kube.*
+        Customer_ID ${LOG_ANALYTICS_WORKSPACE_ID}
+        Shared_Key ${LOG_ANALYTICS_SHARED_KEY}
+        Log_Type AstroliftPodLogs
+
+env:
+  - name: CLUSTER_NAME
+    value: ""
+  - name: LOG_ANALYTICS_WORKSPACE_ID
+    valueFrom:
+      secretKeyRef:
+        name: log-analytics-creds
+        key: workspace-id
+  - name: LOG_ANALYTICS_SHARED_KEY
+    valueFrom:
+      secretKeyRef:
+        name: log-analytics-creds
+        key: shared-key
+  - name: ASTROLIFT_ORG
+    value: ""

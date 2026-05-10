@@ -1,0 +1,83 @@
+# OTel collector values for Azure — exports to Azure Monitor (metrics +
+# logs) and optionally Application Insights (traces). Pair with the
+# observability-otel-azuremonitor module's uami_client_id output.
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: "0.108.0"
+
+mode: deployment
+
+serviceAccount:
+  create: true
+  name: otel-collector
+  annotations:
+    azure.workload.identity/client-id: ""
+
+podLabels:
+  azure.workload.identity/use: "true"
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc: { endpoint: 0.0.0.0:4317 }
+        http: { endpoint: 0.0.0.0:4318 }
+
+  processors:
+    batch: {}
+    memory_limiter:
+      limit_mib: 800
+      spike_limit_mib: 200
+      check_interval: 5s
+    resource:
+      attributes:
+        - key: cluster.name
+          value: ${CLUSTER_NAME}
+          action: insert
+        - key: astrolift.dev/org
+          value: ${ASTROLIFT_ORG}
+          action: insert
+
+  exporters:
+    azuremonitor:
+      connection_string: ${APPINSIGHTS_CONNECTION_STRING}
+      maxbatchsize: 100
+      maxbatchinterval: 10s
+    debug:
+      verbosity: basic
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, resource, batch]
+        exporters: [azuremonitor]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, resource, batch]
+        exporters: [azuremonitor]
+      logs:
+        receivers: [otlp]
+        processors: [memory_limiter, resource, batch]
+        exporters: [azuremonitor]
+
+env:
+  - name: CLUSTER_NAME
+    value: ""
+  - name: ASTROLIFT_ORG
+    value: ""
+  - name: APPINSIGHTS_CONNECTION_STRING
+    valueFrom:
+      secretKeyRef:
+        name: appinsights-creds
+        key: connection-string
+        optional: true

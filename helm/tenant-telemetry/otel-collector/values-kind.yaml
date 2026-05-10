@@ -1,0 +1,62 @@
+# OTel collector values for kind / dev — exports traces to in-cluster
+# Tempo, metrics to in-cluster Prometheus (via remote-write), and logs
+# to in-cluster Loki. All three are provisioned by astrolift-prereqs.
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: "0.108.0"
+
+mode: deployment
+
+serviceAccount:
+  create: true
+  name: otel-collector
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc: { endpoint: 0.0.0.0:4317 }
+        http: { endpoint: 0.0.0.0:4318 }
+
+  processors:
+    batch: {}
+    memory_limiter:
+      limit_mib: 400
+      spike_limit_mib: 100
+      check_interval: 5s
+
+  exporters:
+    otlp/tempo:
+      endpoint: tempo.observability.svc.cluster.local:4317
+      tls: { insecure: true }
+    prometheusremotewrite:
+      endpoint: http://kube-prometheus-stack-prometheus.observability.svc.cluster.local:9090/api/v1/write
+      tls: { insecure: true }
+    loki:
+      endpoint: http://loki.observability.svc.cluster.local:3100/loki/api/v1/push
+    debug:
+      verbosity: basic
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [otlp/tempo]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [prometheusremotewrite]
+      logs:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [loki]

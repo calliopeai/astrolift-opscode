@@ -1,0 +1,76 @@
+# OTel collector values for GCP — exports traces to Cloud Trace, metrics
+# to Cloud Monitoring, and logs to Cloud Logging via the googlecloud
+# exporter. Pair with observability-otel-cloudtrace module's gsa_email.
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: "0.108.0"
+
+mode: deployment
+
+serviceAccount:
+  create: true
+  name: otel-collector
+  annotations:
+    iam.gke.io/gcp-service-account: ""
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "256Mi"
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc: { endpoint: 0.0.0.0:4317 }
+        http: { endpoint: 0.0.0.0:4318 }
+
+  processors:
+    batch: {}
+    memory_limiter:
+      limit_mib: 800
+      spike_limit_mib: 200
+      check_interval: 5s
+    resource:
+      attributes:
+        - key: cluster.name
+          value: ${CLUSTER_NAME}
+          action: insert
+        - key: astrolift.dev/org
+          value: ${ASTROLIFT_ORG}
+          action: insert
+
+  exporters:
+    googlecloud:
+      project: ${GCP_PROJECT_ID}
+      log:
+        default_log_name: opentelemetry.io/collector-exported-log
+    debug:
+      verbosity: basic
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, resource, batch]
+        exporters: [googlecloud]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, resource, batch]
+        exporters: [googlecloud]
+      logs:
+        receivers: [otlp]
+        processors: [memory_limiter, resource, batch]
+        exporters: [googlecloud]
+
+env:
+  - name: GCP_PROJECT_ID
+    value: ""
+  - name: CLUSTER_NAME
+    value: ""
+  - name: ASTROLIFT_ORG
+    value: ""
