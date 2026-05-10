@@ -1,7 +1,6 @@
 variable "region" {
-  description = "GCP region for this environment"
+  description = "GCP region for this environment (no default; set via gcp/config.env or -var)"
   type        = string
-  default     = "us-west1"
 }
 
 variable "project_id" {
@@ -23,6 +22,67 @@ variable "enable_cloud_run" {
 
 variable "enable_gke" {
   description = "Enable GKE Kubernetes container runtime"
+  type        = bool
+  default     = false
+}
+
+# -----------------------------------------------------------------------------
+# Observability + backup toggles
+#
+# Optional components. Defaults follow a dev=light / stg=most / prd=full
+# ladder. Self-hosted operators flip these per cluster.
+# -----------------------------------------------------------------------------
+
+variable "enable_fluent_bit" {
+  description = "Deploy Fluent Bit DaemonSet shipping pod logs to Cloud Logging"
+  type        = bool
+  default     = true
+}
+
+variable "enable_in_cluster_prom" {
+  description = "Run Prometheus + Grafana in-cluster (default observability stack)"
+  type        = bool
+  default     = true
+}
+
+variable "enable_managed_prom" {
+  description = "Provision GKE Managed Prometheus + Cloud Monitoring integration"
+  type        = bool
+  default     = false
+}
+
+variable "enable_otel_cloudtrace" {
+  description = "Deploy OpenTelemetry collector with Cloud Trace exporter"
+  type        = bool
+  default     = true
+}
+
+variable "enable_workload_identity" {
+  description = "Bind GKE Workload Identity for tenant pods (required for GKE)"
+  type        = bool
+  default     = true
+}
+
+variable "enable_velero" {
+  description = "Install Velero with the gcp-pv-backup plugin for cluster snapshots to GCS"
+  type        = bool
+  default     = false
+}
+
+variable "enable_cloudsql_pitr" {
+  description = "Enable point-in-time recovery on Cloud SQL"
+  type        = bool
+  default     = false
+}
+
+variable "enable_gcs_lifecycle" {
+  description = "Apply Coldline / Archive transition lifecycle to GCS bucket noncurrent versions"
+  type        = bool
+  default     = false
+}
+
+variable "enable_cloud_logging_router" {
+  description = "Provision a Cloud Logging sink + bucket for long-term log retention"
   type        = bool
   default     = false
 }

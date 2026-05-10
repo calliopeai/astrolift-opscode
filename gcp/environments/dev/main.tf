@@ -1,20 +1,13 @@
-# EXPERIMENTAL — In Progress
-# GCP support is under active development. Not yet validated against
-# a live GCP project. Contributions welcome.
-
 # -----------------------------------------------------------------------------
 # Astrolift — GCP Development Environment
 # -----------------------------------------------------------------------------
 
 terraform {
-  # Backend configured via -backend-config at init time.
-  # See gcp/config.env for project/region settings.
-  # Run: ./run.sh init gcp dev
-  #
-  # backend "gcs" {
-  #   bucket = "tf-state-astrolift"
-  #   prefix = "gcp/dev"
-  # }
+  backend "gcs" {
+    # Bucket name + prefix injected at init time via -backend-config.
+    # Default scheme: bucket = "tf-state-${PROJECT_ID}", prefix = "gcp/dev".
+    # Run: ./run.sh init gcp dev
+  }
 }
 
 locals {
