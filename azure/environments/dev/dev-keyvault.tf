@@ -26,35 +26,65 @@ resource "azurerm_key_vault" "main" {
   })
 }
 
+# Secrets carry content_type (CKV_AZURE_114) + expiration_date (CKV_AZURE_41).
+# 1-year rotation cadence; operators rotate via the deployer principal.
+locals {
+  kv_secret_expiration_date = timeadd(timestamp(), "8760h") # 365d
+}
+
 # Store database credentials
 resource "azurerm_key_vault_secret" "db_host" {
-  name         = "db-host"
-  value        = azurerm_postgresql_flexible_server.main.fqdn
-  key_vault_id = azurerm_key_vault.main.id
+  name            = "db-host"
+  value           = azurerm_postgresql_flexible_server.main.fqdn
+  key_vault_id    = azurerm_key_vault.main.id
+  content_type    = "text/plain; charset=utf-8"
+  expiration_date = local.kv_secret_expiration_date
+
+  lifecycle {
+    ignore_changes = [expiration_date]
+  }
 
   depends_on = [azurerm_role_assignment.deployer_kv_admin]
 }
 
 resource "azurerm_key_vault_secret" "db_password" {
-  name         = "db-password"
-  value        = random_password.db_password.result
-  key_vault_id = azurerm_key_vault.main.id
+  name            = "db-password"
+  value           = random_password.db_password.result
+  key_vault_id    = azurerm_key_vault.main.id
+  content_type    = "text/plain; charset=utf-8"
+  expiration_date = local.kv_secret_expiration_date
+
+  lifecycle {
+    ignore_changes = [expiration_date]
+  }
 
   depends_on = [azurerm_role_assignment.deployer_kv_admin]
 }
 
 resource "azurerm_key_vault_secret" "db_url" {
-  name         = "db-url"
-  value        = "postgresql://astrolift:${random_password.db_password.result}@${azurerm_postgresql_flexible_server.main.fqdn}:5432/astrolift?sslmode=require"
-  key_vault_id = azurerm_key_vault.main.id
+  name            = "db-url"
+  value           = "postgresql://astrolift:${random_password.db_password.result}@${azurerm_postgresql_flexible_server.main.fqdn}:5432/astrolift?sslmode=require"
+  key_vault_id    = azurerm_key_vault.main.id
+  content_type    = "text/x-uri"
+  expiration_date = local.kv_secret_expiration_date
+
+  lifecycle {
+    ignore_changes = [expiration_date]
+  }
 
   depends_on = [azurerm_role_assignment.deployer_kv_admin]
 }
 
 resource "azurerm_key_vault_secret" "session_secret" {
-  name         = "session-secret"
-  value        = random_password.session_secret.result
-  key_vault_id = azurerm_key_vault.main.id
+  name            = "session-secret"
+  value           = random_password.session_secret.result
+  key_vault_id    = azurerm_key_vault.main.id
+  content_type    = "text/plain; charset=utf-8"
+  expiration_date = local.kv_secret_expiration_date
+
+  lifecycle {
+    ignore_changes = [expiration_date]
+  }
 
   depends_on = [azurerm_role_assignment.deployer_kv_admin]
 }

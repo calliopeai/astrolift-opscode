@@ -10,7 +10,31 @@ resource "azurerm_storage_account" "files" {
   account_replication_type = "ZRS"
   min_tls_version          = "TLS1_2"
 
-  allow_nested_items_to_be_public = false
+  allow_nested_items_to_be_public   = false
+  shared_access_key_enabled         = false
+  default_to_oauth_authentication   = true
+  infrastructure_encryption_enabled = true
+
+  network_rules {
+    default_action             = "Deny"
+    bypass                     = ["AzureServices"]
+    virtual_network_subnet_ids = [azurerm_subnet.app.id]
+  }
+
+  sas_policy {
+    expiration_period = "01.00:00:00"
+    expiration_action = "Log"
+  }
+
+  queue_properties {
+    logging {
+      delete                = true
+      read                  = true
+      write                 = true
+      version               = "1.0"
+      retention_policy_days = 14
+    }
+  }
 
   blob_properties {
     versioning_enabled = true
@@ -32,6 +56,29 @@ resource "azurerm_storage_account" "files" {
     Name    = "${local.name}-files"
     Purpose = "Application file storage"
   })
+}
+
+resource "azurerm_monitor_diagnostic_setting" "files_blob_logs" {
+  name                       = "${local.name}-files-blob-logs"
+  target_resource_id         = "${azurerm_storage_account.files.id}/blobServices/default"
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
+
+  enabled_log {
+    category = "StorageRead"
+  }
+
+  enabled_log {
+    category = "StorageWrite"
+  }
+
+  enabled_log {
+    category = "StorageDelete"
+  }
+
+  metric {
+    category = "Transaction"
+    enabled  = true
+  }
 }
 
 resource "azurerm_storage_container" "files" {

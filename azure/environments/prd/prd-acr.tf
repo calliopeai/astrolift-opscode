@@ -15,6 +15,21 @@ resource "azurerm_container_registry" "main" {
   sku                 = "Premium"
   admin_enabled       = false
 
+  # Premium-only hardenings (CKV_AZURE_237/233/167/164-166/139 family).
+  zone_redundancy_enabled       = true
+  data_endpoint_enabled         = true
+  quarantine_policy_enabled     = true
+  public_network_access_enabled = false
+
+  trust_policy {
+    enabled = true
+  }
+
+  retention_policy {
+    enabled = true
+    days    = 30
+  }
+
   identity {
     type = "SystemAssigned"
   }
