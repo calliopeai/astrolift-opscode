@@ -191,25 +191,189 @@ jobs:
 
   localstack-apply:
     name: localstack apply (aws subset)
+    # workflow_dispatch-only — localstack stability across versions is a
+    # real maintenance cost (per #18 body). Don't run on tag push; opt-in
+    # via the run_localstack input when an operator wants to revalidate.
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_localstack }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     services:
       localstack:
         image: localstack/localstack:3
         ports:
           - 4566:4566
         env:
-          SERVICES: ec2,s3,iam,ecr,kms,logs,secretsmanager
+          # Scope services to the surface we apply against — keeps
+          # localstack startup fast and the failure surface narrow.
+          # s3 + dynamodb cover tf-backend; iam + sts back the provider's
+          # account-id resolution path used by the modules below.
+          SERVICES: s3,dynamodb,iam,sts
+          # localstack-free; pro features (advanced KMS, EKS, RDS engine
+          # internals) intentionally not exercised here.
+          DEBUG: "0"
+    env:
+      # Provider auth: localstack accepts any non-empty creds. These are
+      # not real AWS keys; the provider's STS validation is bypassed by
+      # the skip_* flags in the override file below.
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_REGION: us-east-1
     steps:
       - uses: actions/checkout@v6
+
       - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "1.9"
 
-      - name: TODO — wire localstack provider override + apply tf-backend
+      - name: wait for localstack ready
         run: |
-          echo "Stub — fill in:"
-          echo "  1. provider 'aws' { endpoints { s3 = http://localhost:4566 ... } } overrides"
-          echo "  2. apply aws/tf-backend with mock account"
-          echo "  3. apply a small subset of aws/modules/ to exercise resource shape"
-          echo "Hard to make stable across localstack versions; defer until needed."
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4566/_localstack/health >/dev/null 2>&1; then
+              echo "localstack is ready"
+              curl -s http://localhost:4566/_localstack/health
+              echo
+              exit 0
+            fi
+            echo "waiting for localstack ($i/30)..."
+            sleep 2
+          done
+          echo "::error::localstack never became ready"
+          curl -v http://localhost:4566/_localstack/health || true
+          exit 1
+
+      - name: apply aws/tf-backend against localstack
+        # Strategy: copy the tf-backend root to a CI workdir, then drop
+        # a *_override.tf file (Terraform's built-in override mechanic
+        # https://developer.hashicorp.com/terraform/language/files/override)
+        # that replaces the upstream `provider "aws"` block with a
+        # localstack-pointing variant. This keeps the production root
+        # source clean — no test-only conditionals shipped in main.tf.
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/tf-backend-localstack
+          cp aws/tf-backend/*.tf /tmp/tf-backend-localstack/
+
+          cat > /tmp/tf-backend-localstack/localstack_override.tf <<'EOF'
+          # Overrides aws/tf-backend/main.tf's `provider "aws"` block.
+          # Terraform merges *_override.tf files over their primary file,
+          # so this file's provider config wins.
+          provider "aws" {
+            region                      = "us-east-1"
+            access_key                  = "test"
+            secret_key                  = "test"
+            skip_credentials_validation = true
+            skip_metadata_api_check     = true
+            skip_requesting_account_id  = true
+
+            # Path-style required for localstack S3 (no virtual-host DNS).
+            s3_use_path_style = true
+
+            endpoints {
+              s3       = "http://localhost:4566"
+              dynamodb = "http://localhost:4566"
+              iam      = "http://localhost:4566"
+              sts      = "http://localhost:4566"
+            }
+
+            default_tags {
+              tags = {
+                Service   = "astrolift"
+                ManagedBy = "terraform-localstack-ci"
+                Component = "tf-backend"
+              }
+            }
+          }
+          EOF
+
+          cd /tmp/tf-backend-localstack
+          terraform init -input=false
+          terraform validate
+          # Plan first for a clean failure surface, then apply.
+          terraform plan -input=false -out=tfplan
+          terraform apply -input=false -auto-approve tfplan
+
+      - name: verify tf-backend resources via aws CLI
+        # Sanity-check the resources landed in localstack rather than
+        # trust-but-verify terraform state alone. AWS CLI talks to
+        # localstack via --endpoint-url; same path real operators use
+        # for ad-hoc inspection.
+        run: |
+          set -euo pipefail
+          aws --endpoint-url=http://localhost:4566 s3 ls
+          aws --endpoint-url=http://localhost:4566 s3api list-buckets \
+            --query 'Buckets[].Name'
+          aws --endpoint-url=http://localhost:4566 dynamodb list-tables
+
+      - name: apply aws/modules/tf-backend-bootstrap (module shape exercise)
+        # Picks one of the smaller modules in aws/modules/ to exercise the
+        # module-call shape against localstack. tf-backend-bootstrap is
+        # the same S3+DynamoDB pattern packaged as a callable module —
+        # validates that the module's outputs + variables + resource graph
+        # apply cleanly. EKS/RDS/Aurora modules are intentionally skipped
+        # (localstack-free doesn't model their internals deeply enough
+        # to be a useful gate).
+        run: |
+          set -euo pipefail
+          ls aws/modules/tf-backend-bootstrap/ || {
+            echo "module tf-backend-bootstrap not found — skipping module-shape check"
+            exit 0
+          }
+
+          mkdir -p /tmp/tf-bootstrap-localstack
+          cat > /tmp/tf-bootstrap-localstack/main.tf <<EOF
+          terraform {
+            required_version = ">= 1.5"
+            required_providers {
+              aws = {
+                source  = "hashicorp/aws"
+                version = "~> 5.0"
+              }
+            }
+          }
+
+          provider "aws" {
+            region                      = "us-east-1"
+            access_key                  = "test"
+            secret_key                  = "test"
+            skip_credentials_validation = true
+            skip_metadata_api_check     = true
+            skip_requesting_account_id  = true
+            s3_use_path_style           = true
+
+            endpoints {
+              s3       = "http://localhost:4566"
+              dynamodb = "http://localhost:4566"
+              iam      = "http://localhost:4566"
+              sts      = "http://localhost:4566"
+            }
+          }
+
+          module "bootstrap" {
+            source       = "${{ github.workspace }}/aws/modules/tf-backend-bootstrap"
+            project_name = "astrolift-ci"
+          }
+          EOF
+
+          cd /tmp/tf-bootstrap-localstack
+          terraform init -input=false
+          terraform validate
+          terraform plan -input=false -out=tfplan
+          terraform apply -input=false -auto-approve tfplan
+
+      - name: diagnostics
+        if: always()
+        run: |
+          echo "::group::localstack health"
+          curl -s http://localhost:4566/_localstack/health || true
+          echo
+          echo "::endgroup::"
+
+          echo "::group::s3 buckets"
+          aws --endpoint-url=http://localhost:4566 s3 ls || true
+          echo "::endgroup::"
+
+          echo "::group::dynamodb tables"
+          aws --endpoint-url=http://localhost:4566 dynamodb list-tables || true
+          echo "::endgroup::"
