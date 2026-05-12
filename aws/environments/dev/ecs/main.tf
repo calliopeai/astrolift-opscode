@@ -85,6 +85,7 @@ resource "aws_lb" "app" {
   subnets            = var.public_subnets
 
   enable_deletion_protection = false
+  drop_invalid_header_fields = true
 
   tags = merge(var.tags, { Name = "${var.name}-alb" })
 }
@@ -434,6 +435,11 @@ resource "aws_ecs_cluster" "this" {
         cloud_watch_log_group_name = aws_cloudwatch_log_group.ecs.name
       }
     }
+  }
+
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
   }
 
   tags = var.tags

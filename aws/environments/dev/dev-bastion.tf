@@ -10,8 +10,11 @@ resource "aws_instance" "bastion" {
   key_name               = var.bastion_key_name
   subnet_id              = module.vpc.public_subnets[0]
   vpc_security_group_ids = [aws_security_group.bastion.id]
+  iam_instance_profile   = aws_iam_instance_profile.bastion[0].name
 
   associate_public_ip_address = true
+  monitoring                  = true
+  ebs_optimized               = true
 
   metadata_options {
     http_tokens                 = "required"
@@ -28,6 +31,41 @@ resource "aws_instance" "bastion" {
   tags = merge(local.tags, {
     Name = "${local.name}-bastion"
   })
+}
+
+# Minimal IAM role so SSM Session Manager can be used as a hardened alternative
+# to direct SSH; required by CKV2_AWS_41 (no role attached to instance).
+resource "aws_iam_role" "bastion" {
+  count = var.bastion_key_name != "" ? 1 : 0
+
+  name = "${local.name}-bastion"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = merge(local.tags, { Name = "${local.name}-bastion" })
+}
+
+resource "aws_iam_role_policy_attachment" "bastion_ssm" {
+  count = var.bastion_key_name != "" ? 1 : 0
+
+  role       = aws_iam_role.bastion[0].name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "bastion" {
+  count = var.bastion_key_name != "" ? 1 : 0
+
+  name = "${local.name}-bastion"
+  role = aws_iam_role.bastion[0].name
+
+  tags = merge(local.tags, { Name = "${local.name}-bastion" })
 }
 
 data "aws_ami" "amazon_linux" {

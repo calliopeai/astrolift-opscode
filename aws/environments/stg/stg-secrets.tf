@@ -2,9 +2,34 @@
 # Secrets Manager (staging)
 # -----------------------------------------------------------------------------
 
+resource "aws_kms_key" "secrets" {
+  description             = "KMS key for ${local.name} Secrets Manager encryption"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "EnableIAMUserPermissions"
+      Effect    = "Allow"
+      Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+      Action    = "kms:*"
+      Resource  = "*"
+    }]
+  })
+
+  tags = merge(local.tags, { Name = "${local.name}-secrets-kms" })
+}
+
+resource "aws_kms_alias" "secrets" {
+  name          = "alias/${local.name}-secrets"
+  target_key_id = aws_kms_key.secrets.key_id
+}
+
 resource "aws_secretsmanager_secret" "db_credentials" {
   name        = "${local.name}-db-credentials"
   description = "Database credentials for ${local.name}"
+  kms_key_id  = aws_kms_key.secrets.arn
 
   tags = merge(local.tags, {
     Name    = "${local.name}-db-credentials"
@@ -31,6 +56,7 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
 resource "aws_secretsmanager_secret" "app_secrets" {
   name        = "${local.name}-app-secrets"
   description = "Application secrets for ${local.name}"
+  kms_key_id  = aws_kms_key.secrets.arn
 
   tags = merge(local.tags, {
     Name    = "${local.name}-app-secrets"

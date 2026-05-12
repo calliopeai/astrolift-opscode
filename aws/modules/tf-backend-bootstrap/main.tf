@@ -66,6 +66,14 @@ resource "aws_dynamodb_table" "tfstate_lock" {
     type = "S"
   }
 
+  server_side_encryption {
+    enabled = true
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
   tags = merge(var.tags, {
     Name    = "${var.project_name}-tfstate-lock"
     Purpose = "Terraform state locking"

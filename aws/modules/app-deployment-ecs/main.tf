@@ -240,6 +240,7 @@ resource "aws_lb" "app" {
   subnets            = module.vpc.public_subnets
 
   enable_deletion_protection = local.is_production
+  drop_invalid_header_fields = true
 
   tags = merge(local.tags, { Name = "${local.name}-alb" })
 }
@@ -405,8 +406,9 @@ resource "aws_cloudwatch_log_group" "ecs" {
 }
 
 resource "aws_sns_topic" "alerts" {
-  name = "${local.name}-alerts"
-  tags = local.tags
+  name              = "${local.name}-alerts"
+  kms_master_key_id = "alias/aws/sns"
+  tags              = local.tags
 }
 
 # =============================================================================
@@ -601,9 +603,34 @@ resource "aws_s3_bucket_public_access_block" "files" {
 # Secrets Manager
 # =============================================================================
 
+resource "aws_kms_key" "secrets" {
+  description             = "KMS key for ${local.name} Secrets Manager encryption"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "EnableIAMUserPermissions"
+      Effect    = "Allow"
+      Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+      Action    = "kms:*"
+      Resource  = "*"
+    }]
+  })
+
+  tags = merge(local.tags, { Name = "${local.name}-secrets-kms" })
+}
+
+resource "aws_kms_alias" "secrets" {
+  name          = "alias/${local.name}-secrets"
+  target_key_id = aws_kms_key.secrets.key_id
+}
+
 resource "aws_secretsmanager_secret" "db_credentials" {
-  name = "${local.name}-db-credentials"
-  tags = merge(local.tags, { Purpose = "Database authentication" })
+  name       = "${local.name}-db-credentials"
+  kms_key_id = aws_kms_key.secrets.arn
+  tags       = merge(local.tags, { Purpose = "Database authentication" })
 }
 
 resource "aws_secretsmanager_secret_version" "db_credentials" {
@@ -620,8 +647,9 @@ resource "aws_secretsmanager_secret_version" "db_credentials" {
 }
 
 resource "aws_secretsmanager_secret" "app_secrets" {
-  name = "${local.name}-app-secrets"
-  tags = merge(local.tags, { Purpose = "Application secrets" })
+  name       = "${local.name}-app-secrets"
+  kms_key_id = aws_kms_key.secrets.arn
+  tags       = merge(local.tags, { Purpose = "Application secrets" })
 }
 
 resource "aws_secretsmanager_secret_version" "app_secrets" {
