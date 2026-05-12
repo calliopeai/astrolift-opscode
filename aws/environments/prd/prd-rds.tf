@@ -17,10 +17,16 @@ resource "aws_rds_cluster" "aurora" {
   vpc_security_group_ids = [aws_security_group.rds.id]
 
   storage_encrypted = true
+  kms_key_id        = aws_kms_key.rds.arn
+
+  iam_database_authentication_enabled = true
 
   backup_retention_period      = 30
   preferred_backup_window      = "03:00-04:00"
   preferred_maintenance_window = "Mon:04:00-Mon:05:00"
+  copy_tags_to_snapshot        = true
+
+  enabled_cloudwatch_logs_exports = ["postgresql"]
 
   deletion_protection       = true
   skip_final_snapshot       = false
@@ -51,12 +57,31 @@ resource "aws_rds_cluster_instance" "aurora" {
   instance_class     = "db.serverless"
   engine             = aws_rds_cluster.aurora.engine
   engine_version     = aws_rds_cluster.aurora.engine_version
+  ca_cert_identifier = "rds-ca-rsa2048-g1"
 
-  performance_insights_enabled = true
+  auto_minor_version_upgrade      = true
+  performance_insights_enabled    = true
+  performance_insights_kms_key_id = aws_kms_key.rds.arn
 
   tags = merge(local.tags, {
     Name = "${local.name}-db-${count.index + 1}"
   })
+}
+
+# Customer-managed KMS key for Aurora storage + performance insights encryption.
+resource "aws_kms_key" "rds" {
+  description             = "KMS key for ${local.name} Aurora cluster encryption"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+
+  tags = merge(local.tags, {
+    Name = "${local.name}-rds-kms"
+  })
+}
+
+resource "aws_kms_alias" "rds" {
+  name          = "alias/${local.name}-rds"
+  target_key_id = aws_kms_key.rds.key_id
 }
 
 resource "aws_rds_cluster_parameter_group" "aurora" {
@@ -82,6 +107,12 @@ resource "aws_rds_cluster_parameter_group" "aurora" {
   parameter {
     name  = "idle_in_transaction_session_timeout"
     value = "60000"
+  }
+
+  # Force TLS on all client connections (CKV2_AWS_69).
+  parameter {
+    name  = "rds.force_ssl"
+    value = "1"
   }
 
   tags = merge(local.tags, {

@@ -416,10 +416,11 @@ resource "aws_sns_topic" "alerts" {
 resource "aws_db_instance" "postgres" {
   count = local.is_production ? 0 : 1
 
-  identifier     = "${local.name}-db"
-  engine         = "postgres"
-  engine_version = "16"
-  instance_class = var.db_instance_class
+  identifier         = "${local.name}-db"
+  engine             = "postgres"
+  engine_version     = "16"
+  instance_class     = var.db_instance_class
+  ca_cert_identifier = "rds-ca-rsa2048-g1"
 
   allocated_storage     = 20
   max_allocated_storage = 100
@@ -434,8 +435,15 @@ resource "aws_db_instance" "postgres" {
   vpc_security_group_ids = [aws_security_group.rds.id]
   publicly_accessible    = false
 
+  iam_database_authentication_enabled = true
+  copy_tags_to_snapshot               = true
+  auto_minor_version_upgrade          = true
+
+  enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
+
   backup_retention_period = 7
   skip_final_snapshot     = true
+  deletion_protection     = local.is_production
 
   tags = merge(local.tags, { Name = "${local.name}-db" })
 }
@@ -455,6 +463,11 @@ resource "aws_rds_cluster" "aurora" {
   db_subnet_group_name   = module.vpc.database_subnet_group_name
   vpc_security_group_ids = [aws_security_group.rds.id]
   storage_encrypted      = true
+
+  iam_database_authentication_enabled = true
+  copy_tags_to_snapshot               = true
+
+  enabled_cloudwatch_logs_exports = ["postgresql"]
 
   backup_retention_period   = 30
   deletion_protection       = true
@@ -476,11 +489,14 @@ resource "aws_rds_cluster" "aurora" {
 resource "aws_rds_cluster_instance" "aurora" {
   count = local.is_production ? 2 : 0
 
-  identifier         = "${local.name}-db-${count.index + 1}"
-  cluster_identifier = aws_rds_cluster.aurora[0].id
-  instance_class     = "db.serverless"
-  engine             = aws_rds_cluster.aurora[0].engine
-  engine_version     = aws_rds_cluster.aurora[0].engine_version
+  identifier                   = "${local.name}-db-${count.index + 1}"
+  cluster_identifier           = aws_rds_cluster.aurora[0].id
+  instance_class               = "db.serverless"
+  engine                       = aws_rds_cluster.aurora[0].engine
+  engine_version               = aws_rds_cluster.aurora[0].engine_version
+  ca_cert_identifier           = "rds-ca-rsa2048-g1"
+  auto_minor_version_upgrade   = true
+  performance_insights_enabled = true
 
   tags = merge(local.tags, { Name = "${local.name}-db-${count.index + 1}" })
 }

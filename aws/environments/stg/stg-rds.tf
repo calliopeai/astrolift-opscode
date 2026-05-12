@@ -24,10 +24,17 @@ resource "aws_db_instance" "postgres" {
   publicly_accessible    = false
 
   parameter_group_name = aws_db_parameter_group.postgres.name
+  ca_cert_identifier   = "rds-ca-rsa2048-g1"
 
-  backup_retention_period = 14
-  backup_window           = "03:00-04:00"
-  maintenance_window      = "Mon:04:00-Mon:05:00"
+  backup_retention_period    = 14
+  backup_window              = "03:00-04:00"
+  maintenance_window         = "Mon:04:00-Mon:05:00"
+  copy_tags_to_snapshot      = true
+  auto_minor_version_upgrade = true
+
+  iam_database_authentication_enabled = true
+
+  enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
 
   skip_final_snapshot       = false
   final_snapshot_identifier = "${local.name}-db-final"
@@ -68,6 +75,12 @@ resource "aws_db_parameter_group" "postgres" {
   parameter {
     name  = "idle_in_transaction_session_timeout"
     value = "60000"
+  }
+
+  # Force TLS on all client connections (CKV2_AWS_69).
+  parameter {
+    name  = "rds.force_ssl"
+    value = "1"
   }
 
   tags = merge(local.tags, {
