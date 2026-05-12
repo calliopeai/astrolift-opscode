@@ -243,7 +243,7 @@ jobs:
           curl -v http://localhost:4566/_localstack/health || true
           exit 1
 
-      - name: apply aws/tf-backend against localstack
+      - name: stage aws/tf-backend with localstack provider override
         # Strategy: copy the tf-backend root to a CI workdir, then drop
         # a *_override.tf file (Terraform's built-in override mechanic
         # https://developer.hashicorp.com/terraform/language/files/override)
@@ -287,12 +287,44 @@ jobs:
           }
           EOF
 
-          cd /tmp/tf-backend-localstack
+      - name: terraform init + validate + plan (aws/tf-backend)
+        # plan is the load-bearing check here: validates resource graph,
+        # provider resolution, variable wiring, output shape against the
+        # localstack endpoints. Apply happens in the next step with a
+        # retry shim around known-flaky localstack-free behavior.
+        working-directory: /tmp/tf-backend-localstack
+        run: |
+          set -euo pipefail
           terraform init -input=false
           terraform validate
-          # Plan first for a clean failure surface, then apply.
           terraform plan -input=false -out=tfplan
-          terraform apply -input=false -auto-approve tfplan
+
+      - name: terraform apply (aws/tf-backend) with localstack-free retry
+        # localstack-free (community edition) has a known quirk where
+        # DynamoDB's CreateTable can return a 400 ResourceInUseException
+        # even on a fresh table — the table actually gets created, but
+        # the response handling races. terraform refresh + apply on the
+        # next pass picks up the created resource into state and the
+        # apply converges. This is the maintenance cost the #18 body
+        # called out; we absorb it here rather than fight the provider.
+        working-directory: /tmp/tf-backend-localstack
+        run: |
+          set -euo pipefail
+          ATTEMPTS=3
+          for i in $(seq 1 ${ATTEMPTS}); do
+            echo "::group::apply attempt $i/${ATTEMPTS}"
+            if terraform apply -input=false -auto-approve tfplan; then
+              echo "::endgroup::"
+              echo "apply converged on attempt $i"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "apply failed on attempt $i — refreshing state + replanning"
+            terraform refresh -input=false || true
+            terraform plan -input=false -out=tfplan
+          done
+          echo "::error::apply did not converge after ${ATTEMPTS} attempts"
+          exit 1
 
       - name: verify tf-backend resources via aws CLI
         # Sanity-check the resources landed in localstack rather than
@@ -360,7 +392,25 @@ jobs:
           terraform init -input=false
           terraform validate
           terraform plan -input=false -out=tfplan
-          terraform apply -input=false -auto-approve tfplan
+
+          # Same retry shim as the tf-backend step — localstack-free
+          # CreateTable response handling races; refresh + replan + reapply
+          # converges. See the comment on the tf-backend apply step.
+          ATTEMPTS=3
+          for i in $(seq 1 ${ATTEMPTS}); do
+            echo "::group::module apply attempt $i/${ATTEMPTS}"
+            if terraform apply -input=false -auto-approve tfplan; then
+              echo "::endgroup::"
+              echo "module apply converged on attempt $i"
+              exit 0
+            fi
+            echo "::endgroup::"
+            echo "module apply failed on attempt $i — refreshing state + replanning"
+            terraform refresh -input=false || true
+            terraform plan -input=false -out=tfplan
+          done
+          echo "::error::module apply did not converge after ${ATTEMPTS} attempts"
+          exit 1
 
       - name: diagnostics
         if: always()
