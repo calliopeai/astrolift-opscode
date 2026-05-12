@@ -19,14 +19,76 @@ resource "aws_elasticache_replication_group" "redis" {
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
   auto_minor_version_upgrade = true
+  kms_key_id                 = aws_kms_key.redis.arn
 
   snapshot_retention_limit = 1
   snapshot_window          = "05:00-06:00"
   maintenance_window       = "mon:06:00-mon:07:00"
 
+  log_delivery_configuration {
+    destination      = aws_cloudwatch_log_group.redis_slow.name
+    destination_type = "cloudwatch-logs"
+    log_format       = "json"
+    log_type         = "slow-log"
+  }
+
+  log_delivery_configuration {
+    destination      = aws_cloudwatch_log_group.redis_engine.name
+    destination_type = "cloudwatch-logs"
+    log_format       = "json"
+    log_type         = "engine-log"
+  }
+
   tags = merge(local.tags, {
     Name   = "${local.name}-redis"
     Engine = "redis-7"
+  })
+}
+
+# Customer-managed KMS key for Redis at-rest encryption.
+resource "aws_kms_key" "redis" {
+  description             = "KMS key for ${local.name} ElastiCache encryption"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "EnableIAMUserPermissions"
+      Effect    = "Allow"
+      Principal = { AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root" }
+      Action    = "kms:*"
+      Resource  = "*"
+    }]
+  })
+
+  tags = merge(local.tags, {
+    Name = "${local.name}-redis-kms"
+  })
+}
+
+resource "aws_kms_alias" "redis" {
+  name          = "alias/${local.name}-redis"
+  target_key_id = aws_kms_key.redis.key_id
+}
+
+resource "aws_cloudwatch_log_group" "redis_slow" {
+  name              = "/aws/elasticache/${local.name}/slow-log"
+  retention_in_days = 7
+  kms_key_id        = aws_kms_key.redis.arn
+
+  tags = merge(local.tags, {
+    Name = "/aws/elasticache/${local.name}/slow-log"
+  })
+}
+
+resource "aws_cloudwatch_log_group" "redis_engine" {
+  name              = "/aws/elasticache/${local.name}/engine-log"
+  retention_in_days = 7
+  kms_key_id        = aws_kms_key.redis.arn
+
+  tags = merge(local.tags, {
+    Name = "/aws/elasticache/${local.name}/engine-log"
   })
 }
 
