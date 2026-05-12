@@ -9,11 +9,12 @@ resource "google_compute_network" "vpc" {
 }
 
 resource "google_compute_subnetwork" "public" {
-  name          = "${local.name}-public"
-  ip_cidr_range = "10.100.1.0/24"
-  region        = local.region
-  network       = google_compute_network.vpc.id
-  project       = local.project_id
+  name                     = "${local.name}-public"
+  ip_cidr_range            = "10.100.1.0/24"
+  region                   = local.region
+  network                  = google_compute_network.vpc.id
+  project                  = local.project_id
+  private_ip_google_access = true
 
   log_config {
     aggregation_interval = "INTERVAL_5_SEC"

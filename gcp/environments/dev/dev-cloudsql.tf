@@ -36,6 +36,7 @@ resource "google_sql_database_instance" "postgres" {
       ipv4_enabled                                  = false
       private_network                               = google_compute_network.vpc.id
       enable_private_path_for_google_cloud_services = true
+      ssl_mode                                      = "ENCRYPTED_ONLY"
     }
 
     backup_configuration {
@@ -71,6 +72,42 @@ resource "google_sql_database_instance" "postgres" {
     database_flags {
       name  = "idle_in_transaction_session_timeout"
       value = "60000"
+    }
+
+    # Checkov-required hardening flags (CKV_GCP_51, CKV_GCP_108-111, CKV2_GCP_13).
+    database_flags {
+      name  = "log_checkpoints"
+      value = "on"
+    }
+
+    database_flags {
+      name  = "log_hostname"
+      value = "on"
+    }
+
+    database_flags {
+      name  = "log_duration"
+      value = "on"
+    }
+
+    database_flags {
+      name  = "log_min_messages"
+      value = "error"
+    }
+
+    database_flags {
+      name  = "log_statement"
+      value = "ddl"
+    }
+
+    database_flags {
+      name  = "cloudsql.enable_pgaudit"
+      value = "on"
+    }
+
+    database_flags {
+      name  = "pgaudit.log"
+      value = "ddl, write"
     }
 
     insights_config {

@@ -23,7 +23,7 @@ resource "google_kms_crypto_key" "app" {
   labels = local.labels
 
   lifecycle {
-    prevent_destroy = false
+    prevent_destroy = true
   }
 }
 
@@ -35,6 +35,6 @@ resource "google_kms_crypto_key" "db" {
   labels = local.labels
 
   lifecycle {
-    prevent_destroy = false
+    prevent_destroy = true
   }
 }

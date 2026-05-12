@@ -14,6 +14,10 @@ resource "google_redis_instance" "redis" {
   authorized_network = google_compute_network.vpc.id
   connect_mode       = "PRIVATE_SERVICE_ACCESS"
 
+  # In-transit TLS + AUTH (CKV_GCP_95, CKV_GCP_97).
+  transit_encryption_mode = "SERVER_AUTHENTICATION"
+  auth_enabled            = true
+
   redis_configs = {
     maxmemory-policy = "volatile-lru"
   }

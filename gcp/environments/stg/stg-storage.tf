@@ -2,6 +2,31 @@
 # Cloud Storage — File Storage Bucket
 # -----------------------------------------------------------------------------
 
+resource "google_storage_bucket" "access_logs" {
+  name                        = "${local.name}-access-logs-${local.project_id}"
+  location                    = local.region
+  project                     = local.project_id
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+
+  versioning {
+    enabled = true
+  }
+
+  lifecycle_rule {
+    condition {
+      age = 180
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
+  labels = merge(local.labels, {
+    purpose = "gcs-access-logs"
+  })
+}
+
 resource "google_storage_bucket" "files" {
   name     = "${local.name}-files-${local.project_id}"
   location = local.region
@@ -12,6 +37,11 @@ resource "google_storage_bucket" "files" {
 
   versioning {
     enabled = true
+  }
+
+  logging {
+    log_bucket        = google_storage_bucket.access_logs.name
+    log_object_prefix = "files/"
   }
 
   cors {

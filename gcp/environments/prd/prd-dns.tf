@@ -11,5 +11,9 @@ resource "google_dns_managed_zone" "main" {
   description = "DNS zone for ${local.domain}"
   project     = local.project_id
 
+  dnssec_config {
+    state = "on"
+  }
+
   labels = local.labels
 }
