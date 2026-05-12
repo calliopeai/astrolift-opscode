@@ -35,16 +35,17 @@ jobs:
       - name: install checkov
         run: pip install checkov
 
+      # Hard-fail: every check that fires must either be fixed or
+      # suppressed-with-reason in repo-root `.checkov.yml`. See that
+      # file's header for the suppression conventions.
       - name: checkov scan aws
-        run: checkov -d aws --framework terraform --soft-fail
-        # soft-fail: surface findings as warnings; tighten to hard-fail
-        # once outstanding issues are triaged + suppressed via .checkov.yml
+        run: checkov -d aws --framework terraform
 
       - name: checkov scan gcp
-        run: checkov -d gcp --framework terraform --soft-fail
+        run: checkov -d gcp --framework terraform
 
       - name: checkov scan azure
-        run: checkov -d azure --framework terraform --soft-fail
+        run: checkov -d azure --framework terraform
 
   helm-template-artifacts:
     name: helm template artifacts
