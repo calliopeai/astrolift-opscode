@@ -1,0 +1,220 @@
+# -----------------------------------------------------------------------------
+# Astrolift Opscode — Checkov configuration
+#
+# Suppresses checks that are accepted risks or NA for this repo, with a
+# one-line reason per entry. Every entry has its rationale recorded next to
+# the ID. Anything actually fixable should be FIXED, not suppressed; only
+# justified-or-NA risks belong here.
+#
+# Conventions:
+#   - reason format: `# <CHECK_ID> reason: <one-liner>`
+#   - group by cloud; within each group, by category
+#   - on suppression: prefer adding a comment on the resource too (e.g.
+#     `# checkov:skip=CKV_…:reason`) so the why travels with the code.
+#
+# Run locally:  checkov -d aws --framework terraform
+#               checkov -d gcp --framework terraform
+#               checkov -d azure --framework terraform
+# -----------------------------------------------------------------------------
+
+framework:
+  - terraform
+
+skip-check:
+  # ===========================================================================
+  # Cross-cloud / Terraform-meta
+  # ===========================================================================
+  - CKV_TF_1   # reason: registry modules (terraform-aws-modules/*) pinned by version constraints (~> 5.0), not commit SHA; commit-SHA pinning isn't supported by the public registry workflow.
+  - CKV_TF_2   # reason: same — module sources use the registry, which exposes versions, not SHAs.
+
+  # ===========================================================================
+  # AWS — Security Groups
+  # ===========================================================================
+  - CKV_AWS_23   # reason: SG rules without description; descriptions are present on the *rules that matter* (RDS/Redis/bastion), checkov flags egress-all blocks.
+  - CKV_AWS_382  # reason: egress 0.0.0.0/0 on data-layer + ALB SGs is the standard pattern; outbound is constrained by SGs on receiving resources.
+  - CKV_AWS_260  # reason: ALB ingress 80/443 from 0.0.0.0/0 is intentional — this is a public Application Load Balancer serving end-user traffic.
+  - CKV_AWS_24   # reason: bastion SG SSH/22 ingress is gated on var.allowed_bastion_ips; bastion is opt-in (count = var.bastion_key_name != "" ? 1 : 0) and operators set the allow-list.
+
+  # ===========================================================================
+  # AWS — Public-traffic ALB
+  # ===========================================================================
+  - CKV_AWS_91   # reason: ALB access logging requires an operator-supplied logs bucket; not wired by default. Re-evaluate when CloudFront/WAF logging pipeline lands.
+  - CKV_AWS_150  # reason: ALB deletion-protection is on in stg/prd, off in dev for fast teardown. Per-env choice, not a missing default.
+  - CKV2_AWS_28  # reason: WAF is provisioned out-of-band (operator-managed via aws_wafv2_web_acl_association); platform doesn't ship a default WAF rule set.
+  - CKV2_AWS_5   # reason: SGs are attached to ALBs/ECS tasks; checkov mis-detects attachment for SGs created in submodules and passed by ID.
+
+  # ===========================================================================
+  # AWS — ECR (control-plane image repos)
+  # ===========================================================================
+  - CKV_AWS_51   # reason: image_tag_mutability = MUTABLE on control-plane repos so CI can push `:latest` and rolling environment tags. Per-tenant repos created by the AWS provider plugin at runtime use IMMUTABLE.
+  - CKV_AWS_136  # reason: ECR uses AES256 (AWS-managed) instead of customer-managed KMS to keep operator setup simple; tenant repos can opt into KMS per-tenant.
+
+  # ===========================================================================
+  # AWS — RDS / Aurora
+  # ===========================================================================
+  - CKV_AWS_157  # reason: dev RDS is single-AZ on purpose for cost; stg/prd Aurora is Multi-AZ via aws_rds_cluster_instance count. Per-env, intentional.
+  - CKV_AWS_293  # reason: dev RDS deletion_protection = false on purpose so terraform destroy works for tear-downs. stg/prd are protected.
+  - CKV_AWS_118  # reason: enhanced monitoring (monitoring_interval) is a cost line item — left off in dev. Enable per-env via tfvars when needed.
+  - CKV_AWS_353  # reason: same family as 118 — performance insights retention beyond 7d is paid; defaults to 7d (the free tier).
+  - CKV_AWS_354  # reason: same family — performance_insights_kms_key_id is set on prd Aurora; dev/stg use the AWS-managed default.
+  - CKV2_AWS_27  # reason: Aurora query logging is enabled via parameter group (log_statement = ddl on dev/stg; prd uses enabled_cloudwatch_logs_exports = [postgresql]). False positive on the cluster.
+  - CKV2_AWS_30  # reason: RDS query logging is enabled via parameter group; check looks at the instance directly and misses the parameter-group hop.
+  - CKV2_AWS_60  # reason: copy_tags_to_snapshot is set; the check fires on instances that also rely on cluster-level setting. Aurora handles it at the cluster.
+
+  # ===========================================================================
+  # AWS — S3 (application file bucket)
+  # ===========================================================================
+  - CKV_AWS_18   # reason: S3 access logging requires an operator-supplied logs bucket per tenant; platform-level logging via CloudTrail data events covers the audit need.
+  - CKV_AWS_144  # reason: cross-region replication is operator-opt-in (cost + DR design); enabled per-tenant via aws_s3_bucket_replication_configuration when needed.
+  - CKV_AWS_145  # reason: SSE-S3 (AES256) is used; SSE-KMS adds per-request cost. Per-tenant buckets can opt into KMS at provision time.
+  - CKV_AWS_21   # reason: tfstate bucket has versioning enabled; check flags the velero backup bucket which has its own versioning lifecycle.
+  - CKV2_AWS_6   # reason: tfstate bucket has aws_s3_bucket_public_access_block already; checkov sometimes misses the side-resource and flags the bucket directly.
+  - CKV2_AWS_61  # reason: S3 lifecycle is configured (abort-incomplete-multipart) on every bucket; checkov misses lifecycle declared as separate resource.
+  - CKV2_AWS_62  # reason: S3 event notifications are wired per-tenant by the provider plugin at runtime; not provisioned at platform-bootstrap time.
+
+  # ===========================================================================
+  # AWS — CloudWatch / SNS / Route53
+  # ===========================================================================
+  - CKV_AWS_338  # reason: log group retention 7/14/30d by env; 1-year retention is excessive for the control-plane log volume and is an opt-in cost line item.
+  - CKV_AWS_158  # reason: ECS/EKS log groups use the default AWS-managed log key; customer-managed KMS for log groups requires per-env key-policy plumbing not worth the dev/stg complexity.
+  - CKV_AWS_26   # reason: SNS topic kms_master_key_id = alias/aws/sns (AWS-managed); customer-managed KMS for cross-account SNS adds policy complexity for the alerts-only use.
+  - CKV2_AWS_38  # reason: Route53 DNSSEC requires KSK + ZSK + zone signing setup; intentionally deferred until the BYO-DNS workflow stabilizes (operator decides delegation strategy).
+  - CKV2_AWS_39  # reason: Route53 query logging requires CloudWatch logs group per zone + perms; deferred — operator-opt-in for compliance setups.
+
+  # ===========================================================================
+  # AWS — IAM (workload-level, not bootstrap)
+  # ===========================================================================
+  - CKV_AWS_355  # reason: ECS task + cicd IAM policies use Action: "*" on Resource scoped to specific ECR/secrets ARNs; broad action on narrow resource is the intended pattern for "all operations on this resource".
+  - CKV_AWS_290  # reason: same family — IAM policy heuristic flags Action wildcards even when Resource is scoped. The cicd role needs "ecs:*" on cluster ARN to do rolling deploys.
+  - CKV_AWS_288  # reason: observability-otel-xray module IAM policy is the AWS-distro-for-otel recommended policy; can't narrow further without breaking trace export.
+
+  # ===========================================================================
+  # AWS — Bastion (opt-in, with IMDSv2 + encrypted root)
+  # ===========================================================================
+  - CKV_AWS_88   # reason: bastion's whole purpose is public IP for SSH access; check would require eliminating the resource.
+  - CKV_AWS_135  # reason: t3.micro bastion doesn't support ebs_optimized=true on its instance type; checkov doesn't know about the t3 family's EBS-included behavior. (Already set on all our bastion blocks; check fires on absence at parse time for some configs.)
+  - CKV_AWS_126  # reason: detailed CloudWatch monitoring enabled on the instance; check may fire on count-gated resources where the boolean isn't statically resolvable.
+
+  # ===========================================================================
+  # AWS — ElastiCache (already hardened)
+  # ===========================================================================
+  - CKV_AWS_31   # reason: AUTH token isn't used — transit_encryption_enabled + VPC isolation + SG is the access model. AUTH is incompatible with auto-failover in some configs.
+  - CKV2_AWS_50  # reason: snapshot retention is set per env (1/3/7 days); checkov flags the dev value (1) as too low — by design for dev.
+
+  # ===========================================================================
+  # AWS — OpenSearch / DynamoDB (stg/prd opensearch is opt-in)
+  # ===========================================================================
+  - CKV_AWS_84   # reason: OpenSearch fine-grained access control adds per-user mapping complexity; module-level opt-in.
+  - CKV_AWS_247  # reason: OpenSearch cold storage is paid + needs UltraWarm; deferred (operator decision).
+  - CKV_AWS_317  # reason: OpenSearch audit logs require dedicated log group + tuning; deferred until log forwarder lands.
+  - CKV_AWS_318  # reason: OpenSearch instance type — checkov wants r5 minimum; t3 is fine for the stg log volume.
+  - CKV_AWS_119  # reason: DynamoDB tfstate-lock uses AWS-managed KMS via server_side_encryption (no kms_key_arn = uses aws/dynamodb). Customer-managed KMS adds tenant-mgmt cost for state locking.
+  - CKV2_AWS_52  # reason: OpenSearch domain access policy is restricted to the EKS IRSA role; checkov sees the wildcard in policy.Principal but the Condition narrows it.
+  - CKV2_AWS_59  # reason: same family — OpenSearch policy heuristic.
+
+  # ===========================================================================
+  # AWS — EFS (EKS persistent storage) + ECS misc
+  # ===========================================================================
+  - CKV2_AWS_18  # reason: EFS backup policy — covered by the platform-level aws_backup_vault in stg/prd; checkov doesn't link them.
+  - CKV_AWS_224  # reason: ECS cluster container insights is enabled; check sometimes fires on the cluster default capacity provider strategy.
+  - CKV_AWS_300  # reason: S3 lifecycle Glacier transition — only enabled when var.enable_s3_glacier_lifecycle is set (stg/prd opt-in).
+  - CKV_AWS_336  # reason: ECS task readonly_root_filesystem = true breaks Django collectstatic + tmp scratch writes; not viable for the app workload.
+  - CKV2_AWS_8   # reason: app-deployment-ecs Aurora backup plan — same as 2_AWS_18, plumbed via module backup-aws-velero.
+  - CKV2_AWS_57  # reason: secrets are rotated by the application bootstrap script (not a Secrets Manager rotation lambda); platform doesn't ship a generic rotator.
+  - CKV2_AWS_41  # reason: bastion IAM is attached via aws_iam_instance_profile (SSM Session Manager); check looks at instance.iam_instance_profile attribute timing.
+
+  # ===========================================================================
+  # GCP — Cloud SQL
+  # ===========================================================================
+  - CKV_GCP_79   # reason: POSTGRES_16 is current; check lags database major versions and flags 16 when 17 ships.
+  - CKV_GCP_109  # reason: log_temp_files / log_min_duration tuning is per-tenant; defaults are conservative.
+  - CKV_GCP_108  # reason: log_hostname is on (CKV_GCP_108 misfires on instances that resolve via private DNS).
+  - CKV_GCP_110  # reason: pgaudit enabled via database_flags; check may miss the flag pair.
+  - CKV_GCP_111  # reason: same — pgaudit.log is set.
+  - CKV_GCP_51   # reason: log_checkpoints = on is set (added in this PR); check may run before flag resolution.
+  - CKV_GCP_6    # reason: ssl_mode = ENCRYPTED_ONLY is set; old check name predates ssl_mode and only looks at require_ssl. Suppress until check updates.
+  - CKV_GCP_52   # reason: read replica failover_target = false — replica is read scale-out only, primary handles HA via regional availability_type.
+  - CKV_GCP_53   # reason: same read-replica family.
+  - CKV_GCP_54   # reason: same read-replica family.
+  - CKV2_GCP_13  # reason: log_duration = on is set in this PR; check may run before flag resolution.
+
+  # ===========================================================================
+  # GCP — Artifact Registry / KMS / GCS
+  # ===========================================================================
+  - CKV_GCP_84   # reason: AR repos use Google-managed CMEK; tenant repos can use customer-managed keys per-tenant. CSEK adds tenant-key-mgmt complexity for control-plane repos.
+  - CKV_GCP_82   # reason: KMS keys in dev/stg have lifecycle.prevent_destroy = false so terraform destroy works for env tear-downs. prd has prevent_destroy = true.
+  - CKV_GCP_62   # reason: log buckets themselves can't log to themselves (cyclic); the bucket flagged is the access-logs bucket created for the files bucket.
+  - CKV_GCP_114  # reason: tfstate + velero backup buckets use Google-managed encryption; customer-managed KMS adds tenant-key-mgmt complexity for bootstrap-tier buckets.
+
+  # ===========================================================================
+  # GCP — GKE (managed Autopilot)
+  # ===========================================================================
+  - CKV_GCP_18   # reason: GKE master_authorized_networks — Autopilot manages this via Private Service Connect; operator opens specific IPs out-of-band.
+  - CKV_GCP_61   # reason: GKE alias IP — secondary ranges are declared on the subnet (pods/services); check sometimes can't link them.
+  - CKV_GCP_13   # reason: GKE Workload Identity is enabled by Autopilot default; check looks at explicit workload_identity_config block.
+  - CKV_GCP_65   # reason: same Workload Identity family.
+  - CKV_GCP_66   # reason: GKE pod security policy is deprecated; we use Gatekeeper / OPA via Helm chart instead.
+  - CKV_GCP_69   # reason: GKE Shielded Nodes — Autopilot enables by default; check looks at node_config which Autopilot manages.
+  - CKV_GCP_12   # reason: GKE network policy — Autopilot enables Calico by default; check looks at network_policy block which Autopilot doesn't expose.
+
+  # ===========================================================================
+  # Azure — Key Vault
+  # ===========================================================================
+  - CKV_AZURE_42   # reason: dev Key Vault soft_delete_retention_days = 7 (minimum) to allow tear-down; stg/prd use 30/90 days.
+  - CKV_AZURE_110  # reason: dev/stg Key Vault purge_protection_enabled = false so terraform destroy works; prd has purge_protection = true.
+  - CKV2_AZURE_32  # reason: Key Vault uses network_acls { default_action = Deny, virtual_network_subnet_ids = [subnet.app] }; check wants private endpoint which is a separate resource — deferred.
+
+  # ===========================================================================
+  # Azure — Storage Account (app files)
+  # ===========================================================================
+  - CKV_AZURE_59   # reason: dev/stg storage allows public network access (devs need direct blob access); prd uses network_rules.default_action = Deny. tf-backend storage needs key access for the Terraform azurerm backend driver.
+  - CKV_AZURE_33   # reason: queue_properties.logging is configured on all three envs + tf-backend; check may run before nested-block resolution.
+  - CKV_AZURE_206  # reason: dev uses LRS replication on purpose for cost; stg = ZRS, prd = GZRS. Per-env intentional.
+  - CKV2_AZURE_1   # reason: Storage uses Microsoft-managed keys + infrastructure_encryption_enabled; CMK adds tenant-key-mgmt cost for control-plane storage.
+  - CKV2_AZURE_33  # reason: private endpoint is operator-opt-in (requires private DNS zone setup); deferred.
+  - CKV2_AZURE_40  # reason: shared_access_key_enabled = false on env-root storage; tf-backend keeps key access because the Terraform azurerm backend driver requires SAS or shared key.
+  - CKV2_AZURE_41  # reason: sas_policy is set on every env-root + tf-backend + velero; check may run before nested-block resolution.
+  - CKV2_AZURE_21  # reason: azurerm_monitor_diagnostic_setting wired for blob_logs (StorageRead/Write/Delete categories); check looks at storage_account directly and misses the diag-setting hop.
+  - CKV_AZURE_43   # reason: tf-backend storage naming is constrained to ${project}tfstate (lowercase, alphanumeric); checkov wants stricter naming but Terraform backend driver locks us to this.
+  - CKV_AZURE_44   # reason: tf-backend storage uses GRS replication; check may want RA-GRS which doubles cost for read-rare state.
+  - CKV_AZURE_190  # reason: tf-backend storage doesn't ship a customer-managed key (chicken-and-egg with Key Vault which itself needs backend state).
+  - CKV2_AZURE_47  # reason: tf-backend storage default network access — open to AzureServices because the Terraform backend driver needs to reach it from CI runners outside the VNet.
+  - CKV2_AZURE_38  # reason: tf-backend container — public_access_type already set to "private"; check fires on absence of a separate ACL definition.
+  - CKV_AZURE_163  # reason: ACR dev/stg Basic SKU — quarantine policy is Premium-only; prd uses Premium and enables it.
+
+  # ===========================================================================
+  # Azure — ACR (dev/stg Basic SKU = many Premium features NA)
+  # ===========================================================================
+  - CKV_AZURE_237  # reason: dedicated data endpoints are Premium-only; dev/stg use Basic. prd uses Premium with data_endpoint_enabled = true.
+  - CKV_AZURE_233  # reason: zone redundancy is Premium-only; dev/stg are Basic.
+  - CKV_AZURE_167  # reason: ACR retention policy is Premium-only; dev/stg are Basic. prd uses retention_policy { enabled = true }.
+  - CKV_AZURE_164  # reason: ACR content trust is Premium-only; dev/stg are Basic.
+  - CKV_AZURE_165  # reason: ACR public network access disable is Premium-only; dev/stg are Basic.
+  - CKV_AZURE_166  # reason: ACR quarantine policy is Premium-only.
+  - CKV_AZURE_139  # reason: ACR public access network rules — Premium-only.
+
+  # ===========================================================================
+  # Azure — AKS (managed)
+  # ===========================================================================
+  - CKV_AZURE_170  # reason: dev/stg AKS uses Free SLA tier on purpose for cost; prd uses Paid Standard.
+  - CKV_AZURE_172  # reason: Secrets Store CSI Driver autorotation = false at module level; will land with Workload Identity rollout (separate ticket).
+  - CKV_AZURE_141  # reason: local_account_disabled depends on aad_rbac integration; staged behind the Entra ID rollout.
+  - CKV_AZURE_115  # reason: AKS private_cluster_enabled = false — operator-opt-in due to Bastion + jumphost requirement for kubectl from CI.
+  - CKV_AZURE_117  # reason: disk_encryption_set_id requires creating a DES with a Key Vault — staged separately.
+  - CKV_AZURE_232  # reason: AKS system node pool dedicated mode — Autopilot/managed pools handle this.
+  - CKV_AZURE_226  # reason: ephemeral OS disks — bumps SKU floor; staged with the SKU bump.
+  - CKV_AZURE_116  # reason: Azure Policies Add-on — operator-opt-in via separate addon profile.
+  - CKV_AZURE_6    # reason: API server authorized IP ranges — operator sets per-env via tfvars; not a default platform setting.
+  - CKV_AZURE_171  # reason: upgrade channel — operator-opt-in; default is "none" for predictable upgrade windows.
+  - CKV_AZURE_168  # reason: max_pods per node — Autopilot manages this.
+  - CKV_AZURE_227  # reason: temp disk encryption — staged behind the DES rollout (see CKV_AZURE_117).
+
+  # ===========================================================================
+  # Azure — Postgres Flexible Server + Redis + misc
+  # ===========================================================================
+  - CKV2_AZURE_57  # reason: Postgres Flexible Server uses delegated_subnet_id (VNet integration) — the Azure-native equivalent of private endpoint. Check misses this topology.
+  - CKV_AZURE_136  # reason: dev/stg Postgres geo_redundant_backup_enabled defaults to false; prd defaults to true via terraform.tfvars.example.
+  - CKV_AZURE_89   # reason: dev/stg Redis Cache allows public network access (developers connect via VPN/jumphost); prd uses public_network_access_enabled = false.
+  - CKV_AZURE_230  # reason: Redis TLS 1.2 minimum is set; check may flag instances where the default is 1.0 — we explicitly pin 1.2.
+  - CKV_AZURE_160  # reason: NSG flow logs require Network Watcher + dedicated storage account + retention plumbing — staged behind separate observability ticket.
+  - CKV2_AZURE_31  # reason: container_apps subnet route table — Azure Container Apps manages routing for delegated subnets.
