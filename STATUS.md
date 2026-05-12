@@ -121,10 +121,10 @@ Legend:
 |---|---|---|
 | `.github/workflows/ci-pr.yml` | ✅ | Cheap tier: fmt + offline validate + tflint + helm lint/template + scripts/yaml + path-filter smoke. Green on main |
 | `.github/workflows/ci-main.yml` | ✅ | Medium tier: reuses ci-pr.yml + checkov + helm template artifact upload. Green on main |
-| `.github/workflows/ci-release.yml` | 🚧 | Heavy tier triggered by tags + workflow_dispatch. Has structural skeleton + a minimal kind smoke test |
-| `ci-release.yml` kind smoke extensions | 📋 | Stub — installs cert-manager + storage classes only. Should install the platform via `kubernetes/base/install.sh kind dev`, deploy a sample app, assert healthy. Tracked in [issue #18](https://github.com/&lt;your-fork&gt;/astrolift-opscode/issues/18) |
-| `ci-release.yml` localstack apply | 📋 | Stub — `workflow_dispatch` opt-in only. Defer until a real need surfaces |
-| `terraform plan` in `ci-main.yml` | 🚫 | Not wired — needs OIDC federation for cloud creds. Tracked in [issue #18](https://github.com/&lt;your-fork&gt;/astrolift-opscode/issues/18) |
+| `.github/workflows/ci-release.yml` | ✅ | Heavy tier triggered by tags + workflow_dispatch. kind smoke + localstack apply both wired |
+| `ci-release.yml` kind smoke | ✅ | Boots kind, runs `kubernetes/base/install.sh kind dev` (cert-manager + Gateway API CRDs + metrics-server; heavy charts skipped for the spec #11 budget), installs the astrolift chart with replicaCount=0 against the live API server, deploys a sample workload, asserts Pod Ready. Runs in ~1m40s (well under the <5min target). Sample-app via `astro` CLI lands once the CLI release artifact + control-plane images are public — for now a raw kubectl manifest stands in |
+| `ci-release.yml` localstack apply | 🚧 | `workflow_dispatch` opt-in (`run_localstack=true`). plan + validate are the load-bearing gates (proves resource graph + provider config). Apply step is soft-fail — localstack-free's DynamoDB CreateTable response handling races and refresh can't recover an out-of-state resource. Upgrading to localstack-pro would close this; out of scope for self-CI |
+| `terraform plan` in `ci-main.yml` | 🚫 | Not wired — needs OIDC federation trust setup operator-side in AWS + GCP + Azure. Tracked in [issue #20](https://github.com/calliopeai/astrolift-opscode/issues/20) (split out of #18) |
 | `.tflint.hcl` | ✅ | Pinned aws/google/azurerm plugins; `terraform_unused_declarations` rule disabled (we ship public-API vars even when internally unused) |
 | checkov | 🚧 | Currently `--soft-fail` with **409 untriaged findings** (310 AWS, 30 GCP, 69 Azure). Tracked in [issue #19](https://github.com/&lt;your-fork&gt;/astrolift-opscode/issues/19). Real fixes + `.checkov.yml` suppressions needed before flipping to hard-fail |
 
