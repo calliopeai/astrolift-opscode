@@ -2,10 +2,15 @@
 # Boots a kind cluster + localstack and exercises a slice of the
 # infra to catch apply-time regressions that fmt/validate miss.
 #
-# Currently a structural skeleton: the kind/localstack steps are
-# stubbed with TODOs so the workflow file exists and triggers
-# correctly on tags. Filling them in is its own follow-up — they
-# need real fixtures + a stable subset of resources to apply.
+# kind smoke: full cluster baseline + astrolift chart install + sample
+# workload Ready assertion. Targets the spec #11 <5-min budget by
+# skipping the heavy observability + GitOps prereqs (argocd / loki /
+# kube-prometheus-stack / fluent-bit) — those are validated by helm
+# lint/template in ci-pr.yml, not by a live install. The kind smoke's
+# job is to prove the cluster baseline + chart shape + Pod scheduling
+# survive a fresh apply against a real API server.
+#
+# localstack: still workflow_dispatch-only — see issue #18 follow-ups.
 
 name: opscode release ci
 
@@ -28,40 +33,161 @@ permissions:
 
 jobs:
   kind-smoke:
-    name: kind cluster smoke (astrolift-prereqs minimal)
+    name: kind smoke (baseline + astrolift chart + sample workload)
     if: ${{ github.event_name == 'push' || inputs.run_kind_smoke }}
     runs-on: ubuntu-latest
+    # Spec #11 target is <5min on a clean machine. The job timeout
+    # gives 10min total headroom (kind boot ~1m, baseline install ~2-3m,
+    # chart install + sample app ~1m, wait + diagnostics ~1m). If this
+    # regresses past the timeout we want a hard fail rather than a
+    # silently-slow gate — that's the whole point of the budget.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+
       - uses: helm/kind-action@v1
         with:
           cluster_name: astrolift-ci
-          wait: 5m
+          wait: 3m
 
       - uses: azure/setup-helm@v4
         with:
           version: "v3.16.2"
 
-      - name: helm dep update
-        run: helm dependency update helm/astrolift-prereqs
-
-      - name: install astrolift-prereqs (minimal subset)
+      - name: cluster baseline (kubernetes/base/install.sh kind dev)
+        # Use the official kind/dev install path the operator runbooks
+        # point to (kubernetes/base/install.sh). Skip the heavy charts
+        # (argocd / loki / kube-prometheus-stack / fluentBit / envoyGateway)
+        # to fit the <5-min budget — those land via the umbrella prereqs
+        # chart and are exercised in ci-pr.yml's helm lint+template tier.
+        # What we keep: cert-manager (TLS for ingress), metrics-server
+        # (kubectl top works), Gateway API CRDs (chart targets), external-
+        # secrets (skipped automatically for kind profile). External-dns
+        # + alb-controller are also auto-skipped on kind.
         run: |
-          # Toggle on cert-manager + storage classes only — the rest
-          # take >10m to roll out and aren't worth gating release on.
-          helm install prereqs helm/astrolift-prereqs \
-            --set certManager.enabled=true \
-            --set storageClasses.enabled=true \
-            --set storageClasses.longhorn.enabled=false \
-            --wait --timeout 5m
+          set -euo pipefail
+          chmod +x kubernetes/base/install.sh
+          ./kubernetes/base/install.sh kind dev \
+            --skip argocd \
+            --skip loki \
+            --skip prometheus \
+            --skip fluentBit \
+            --skip envoyGateway
 
-      - name: kubectl get pods
-        run: kubectl get pods -A
-
-      - name: TODO — extend with sample app deploy via astro CLI
+      - name: install astrolift chart
+        # Override images to a public busy-box-ish image so chart
+        # rendering + resource creation actually exercise the K8s API
+        # path. Replicas=0 avoids ImagePullBackOff churn since the
+        # real astrolift/{api,ui,worker,status} images aren't yet on a
+        # public registry — the goal here is to prove the chart
+        # *applies* against a live cluster, not that the platform pods
+        # come up. Real-image Pod-Ready will land once images publish
+        # to Docker Hub (tracked in STATUS.md).
         run: |
-          echo "Sub-5-min target per spec #11 — fill in when the kind dev"
-          echo "profile in kubernetes/base/install.sh is hardened."
+          set -euo pipefail
+          helm install astrolift helm/astrolift \
+            --set api.replicaCount=0 \
+            --set ui.replicaCount=0 \
+            --set worker.replicaCount=0 \
+            --set status.replicaCount=0 \
+            --set api.image.repository=public.ecr.aws/docker/library/nginx \
+            --set api.image.tag=alpine \
+            --set ui.image.repository=public.ecr.aws/docker/library/nginx \
+            --set ui.image.tag=alpine \
+            --set worker.image.repository=public.ecr.aws/docker/library/nginx \
+            --set worker.image.tag=alpine \
+            --set status.image.repository=public.ecr.aws/docker/library/nginx \
+            --set status.image.tag=alpine \
+            --wait --timeout 2m
+
+      - name: deploy sample workload + assert Ready
+        # The sample workload stands in for what the `astro` CLI will
+        # register + deploy once the CLI release artifact + control-plane
+        # images are public. Until then, a raw kubectl manifest proves
+        # the same thing the issue asks for: cluster + baseline survives
+        # a fresh apply, and a user workload can schedule + reach Ready.
+        # Sample-app-via-astro-CLI is the follow-up; tracked in STATUS.md.
+        run: |
+          set -euo pipefail
+          kubectl create namespace astrolift-sample
+          cat <<'EOF' | kubectl apply -n astrolift-sample -f -
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: sample-app
+            labels:
+              app: sample-app
+              astrolift.io/sample: "true"
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: sample-app
+            template:
+              metadata:
+                labels:
+                  app: sample-app
+              spec:
+                containers:
+                  - name: app
+                    image: public.ecr.aws/docker/library/nginx:alpine
+                    ports:
+                      - containerPort: 80
+                    readinessProbe:
+                      httpGet:
+                        path: /
+                        port: 80
+                      initialDelaySeconds: 2
+                      periodSeconds: 2
+                    resources:
+                      requests:
+                        cpu: 10m
+                        memory: 16Mi
+                      limits:
+                        cpu: 100m
+                        memory: 64Mi
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: sample-app
+          spec:
+            selector:
+              app: sample-app
+            ports:
+              - port: 80
+                targetPort: 80
+          EOF
+
+          kubectl wait --namespace astrolift-sample \
+            --for=condition=Available \
+            --timeout=120s \
+            deployment/sample-app
+
+          kubectl wait --namespace astrolift-sample \
+            --for=condition=Ready \
+            --timeout=60s \
+            pod -l app=sample-app
+
+      - name: diagnostics
+        if: always()
+        run: |
+          echo "::group::all pods"
+          kubectl get pods -A -o wide || true
+          echo "::endgroup::"
+
+          echo "::group::astrolift chart resources"
+          kubectl get deploy,svc,sa -l app.kubernetes.io/part-of=astrolift -A || true
+          echo "::endgroup::"
+
+          echo "::group::sample app describe"
+          kubectl describe -n astrolift-sample deployment/sample-app || true
+          kubectl describe -n astrolift-sample pod -l app=sample-app || true
+          echo "::endgroup::"
+
+          echo "::group::recent events"
+          kubectl get events -A --sort-by=.lastTimestamp | tail -30 || true
+          echo "::endgroup::"
 
   localstack-apply:
     name: localstack apply (aws subset)
