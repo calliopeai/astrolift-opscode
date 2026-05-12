@@ -6,6 +6,25 @@ resource "azurerm_storage_account" "backups" {
   location                 = var.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
+  min_tls_version          = "TLS1_2"
+
+  allow_nested_items_to_be_public   = false
+  infrastructure_encryption_enabled = true
+
+  sas_policy {
+    expiration_period = "01.00:00:00"
+    expiration_action = "Log"
+  }
+
+  queue_properties {
+    logging {
+      delete                = true
+      read                  = true
+      write                 = true
+      version               = "1.0"
+      retention_policy_days = var.retention_days
+    }
+  }
 
   blob_properties {
     versioning_enabled = true
