@@ -76,7 +76,7 @@ jobs:
           helm template prereqs helm/astrolift-prereqs > .render/astrolift-prereqs.yaml
           echo "rendered .render/astrolift-prereqs.yaml ($(wc -l < .render/astrolift-prereqs.yaml) lines)"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: helm-rendered-${{ github.sha }}
           path: .render/
