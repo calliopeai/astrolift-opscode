@@ -76,6 +76,12 @@ variable "enable_s3_glacier_lifecycle" {
   default     = true
 }
 
+variable "enable_email_events" {
+  description = "Provision SNS topic + HTTPS webhook subscription for SES email events (SEND/DELIVERY/BOUNCE/COMPLAINT/OPEN/CLICK)"
+  type        = bool
+  default     = true
+}
+
 # ECS settings
 variable "container_image" {
   description = "Docker image for the ECS task (ECR URI)"

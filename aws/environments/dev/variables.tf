@@ -64,6 +64,12 @@ variable "enable_aws_backup" {
   default     = false
 }
 
+variable "enable_email_events" {
+  description = "Provision SNS topic + HTTPS webhook subscription for SES email events (SEND/DELIVERY/BOUNCE/COMPLAINT/OPEN/CLICK)"
+  type        = bool
+  default     = false
+}
+
 # ECS settings
 variable "container_image" {
   description = "Docker image for the ECS task (ECR URI)"

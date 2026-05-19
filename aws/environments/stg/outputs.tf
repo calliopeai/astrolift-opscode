@@ -108,3 +108,9 @@ output "irsa_role_path" {
   description = "IAM path under which provider-plugin-created IRSA roles live"
   value       = "/astrolift/"
 }
+
+# Email events pipeline (gated by enable_email_events)
+output "ses_events_sns_topic_arn" {
+  description = "SNS topic ARN for SES email events. Set as ASTROLIFT_SES_EVENTS_SNS_TOPIC_ARN (empty if enable_email_events = false)"
+  value       = var.enable_email_events ? module.email_events[0].sns_topic_arn : ""
+}
